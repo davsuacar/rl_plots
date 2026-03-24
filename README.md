@@ -55,7 +55,7 @@ plot_container/
 docker compose up -d
 ```
 
-Jupyter Lab queda disponible en **http://localhost:8888**. Los notebooks se montan desde `./notebooks` y el código en `src` está en el `PYTHONPATH` para poder hacer `from utils.download_data import ...` (o similares) desde los notebooks.
+Jupyter Lab queda disponible en **http://localhost:8888**. El directorio del proyecto (`.`) se monta en `/home/jovyan/work`, así que cualquier cambio en notebooks, `src/` u otros archivos queda guardado en tu máquina y persiste al cerrar el contenedor. El `PYTHONPATH` incluye `src` para imports desde los notebooks.
 
 ### Usar el Dev Container (VS Code / Cursor)
 

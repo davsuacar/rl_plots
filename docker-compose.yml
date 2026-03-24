@@ -9,7 +9,9 @@ services:
     ports:
       - "8888:8888"
     volumes:
-      - ./notebooks:/home/jovyan/work/notebooks
+      # Proyecto completo: cambios en el contenedor se guardan en el host (persisten al cerrar)
+      - .:/home/jovyan/work
+      # Datos externos (opcional; sobrescribe ./data del repo en esta ruta)
       - /Users/david_mac/Documents/LAB_EVALUATION:/home/jovyan/work/data
     environment:
       - JUPYTER_ENABLE_LAB=yes
@@ -28,7 +30,3 @@ services:
     #     reservations:
     #       cpus: '1'
     #       memory: 2G
-
-volumes:
-  notebooks:
-  data: 
