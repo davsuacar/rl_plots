@@ -594,7 +594,6 @@ for var in action_distribution_variables:
     )
     fig.update_layout(
         title=None,
-        yaxis_title='',
         showlegend=False,
     )
     save_figure(

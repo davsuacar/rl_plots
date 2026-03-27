@@ -288,7 +288,7 @@ if training_progress:
         variable_name='mean_reward',
         colors=colors[:_n],
     )
-    fig.update_layout(title='', xaxis_title='Episode', yaxis_title='Mean Reward')
+    fig.update_layout(title=None, xaxis_title='Episode', yaxis_title='Mean Reward')
     save_figure(
         fig, OUTPUT_PROGRESS / 'training_progress', width=1200, height=700, scale=2
     )
@@ -313,8 +313,8 @@ for key, df in unified.items():
             temperature_variables[i].replace('air_temperature_', '').replace('-', '_')
         )
         fig.update_layout(
-            title=f'{key} — {zone_name}',
-            xaxis_title='',
+            title=None,
+            xaxis_title='Date',
             yaxis_title='Temperature (°C)',
         )
         save_figure(
@@ -370,7 +370,7 @@ for key, df in unified.items():
             datetime_col='datetime',
             window=SMOOTH_WINDOW,
             color=colors[i % len(colors)],
-            title=f'{key} — Heat pump and control: {var}',
+            title=None,
             yaxis_title=var,
         )
         save_figure(
@@ -411,7 +411,7 @@ for key, df in unified.items():
         datetime_col='datetime',
         requested_name='Water temperature setpoint',
         outlet_name='Heat source outlet temperature',
-        title=f'{key} — Heat work: requested vs real outlet temperature',
+        title=None,
     )
     save_figure(
         fig,
@@ -427,8 +427,8 @@ for key, df in unified.items():
 
 fig = plot_bar(mean_temp_violation_dict, bar_colors=colors[:df_num])
 fig.update_layout(
-    title='Comparative mean temperature violation',
-    xaxis_title='',
+    title=None,
+    xaxis_title='Model',
     yaxis_title='Mean Temperature Violation (ºC)',
 )
 save_figure(
@@ -437,30 +437,30 @@ save_figure(
 
 fig = plot_bar(mean_energy_consumption_dict, bar_colors=colors[:df_num])
 fig.update_layout(
-    title='Comparative power demand',
-    xaxis_title='',
+    title=None,
+    xaxis_title='Model',
     yaxis_title='Mean power consumption (W)',
 )
 save_figure(
     fig, OUTPUT_MEANS_GENERAL / 'mean_power_demand', width=1200, height=600, scale=2
 )
 
-fig = plot_dfs_line_grouped_by_month(
+fig = plot_dfs_bar_grouped_by_month(
     unified,
     energy_variable,
     colors=colors[:df_num],
 )
-fig.update_layout(title='', xaxis_title=None, yaxis_title='Power demand (W)')
+fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Power demand (W)')
 save_figure(
     fig, OUTPUT_MEANS_MONTH / 'month_power_demand', width=1200, height=600, scale=2
 )
 
-fig = plot_dfs_line_grouped_by_month(
+fig = plot_dfs_bar_grouped_by_month(
     unified,
     'total_temperature_violation',
     colors=colors[:df_num],
 )
-fig.update_layout(title='', xaxis_title=None, yaxis_title='Temperature violation (°C)')
+fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Temperature violation (°C)')
 save_figure(
     fig,
     OUTPUT_MEANS_MONTH / 'month_temperature_violation',
@@ -480,7 +480,7 @@ if any(
         colors=colors[:df_num],
     )
     fig.update_layout(
-        title='Mean inlet temperature by zone', yaxis_title='Mean inlet (°C)'
+        title=None, yaxis_title='Mean inlet (°C)'
     )
     save_figure(
         fig,
@@ -500,7 +500,7 @@ if any(
         colors=colors[:df_num],
     )
     fig.update_layout(
-        title='Mean outlet temperature by zone', yaxis_title='Mean outlet (°C)'
+        title=None, yaxis_title='Mean outlet (°C)'
     )
     save_figure(
         fig,
@@ -518,8 +518,9 @@ if crf_trans_mean_dict:
         bar_colors=colors[: len(crf_trans_mean_dict)],
     )
     fig.update_layout(
-        title='CRF: mean on/off transitions per day',
+        title=None,
         yaxis_title='Transitions per day',
+        xaxis_title='Model',
     )
     save_figure(
         fig,
@@ -535,8 +536,9 @@ if crf_ons_mean_dict:
         bar_colors=colors[: len(crf_ons_mean_dict)],
     )
     fig.update_layout(
-        title='CRF: mean strict ons per day',
+        title=None,
         yaxis_title='Ons per day',
+        xaxis_title='Model',
     )
     save_figure(
         fig,
@@ -558,6 +560,7 @@ if names_reference and names_comparison:
         variable=energy_variable,
         colors=colors[1 : combination_size + 1],
     )
+    fig.update_layout(title=None)
     save_figure(fig, OUTPUT_SAVINGS / 'mean_savings', width=1200, height=600, scale=2)
 
     fig = plot_energy_savings(
@@ -584,8 +587,7 @@ for var in action_distribution_variables:
         colors=colors[:df_num],
     )
     fig.update_layout(
-        title=f'{var} — Distribution',
-        yaxis_title='',
+        title=None,
         showlegend=False,
     )
     save_figure(
@@ -607,8 +609,9 @@ else:
         evaluation_progress,
         'comfort_violation_time(%)',
         colors=colors[:df_num],
+        yaxis_title='Comfort violation time (%)',
+        xaxis_title='Model'
     )
-    fig.update_layout(title='Comfort violation time (% of episode)', yaxis_title='')
     save_figure(
         fig,
         OUTPUT_BOXPLOTS / 'comfort_violation_time',
@@ -623,8 +626,9 @@ else:
         colors=colors[:df_num],
     )
     fig.update_layout(
-        title='Mean temperature violation',
-        yaxis_title='Temperature violation (ºC)',
+        title=None,
+        yaxis_title='Mean Episodic Temperature violation (ºC)',
+        xaxis_title='Model'
     )
     save_figure(
         fig,
@@ -638,8 +642,10 @@ else:
         evaluation_progress,
         'mean_power_demand',
         colors=colors[:df_num],
+        yaxis_title='Power demand (W)',
+        xaxis_title='Model'
     )
-    fig.update_layout(title='Mean power demand', yaxis_title='Power demand (W)')
+    fig.update_layout(title=None, yaxis_title='Power demand (W)')
     save_figure(
         fig,
         OUTPUT_BOXPLOTS / 'power_demand',
@@ -699,7 +705,7 @@ else:
             color_energy=colors[1],
         )
         fig.update_layout(
-            title='Reward balance: comfort term vs energy term (mean ± std across episodes)',
+            title=None,
             xaxis_tickangle=-25,
         )
         save_figure(
@@ -732,7 +738,7 @@ if training_progress:
             energy_col=REWARD_ENERGY_COL,
             std_comfort_col='std_reward_comfort_term',
             std_energy_col='std_reward_energy_term',
-            title=f'{run_name} — Comfort vs energy term during training',
+            title=None,
             color_comfort=colors[0],
             color_energy=colors[1],
             show_std_band=True,
@@ -767,7 +773,7 @@ for key, df in unified.items():
         datetime_col='datetime',
         comfort_col=INFO_COMFORT_COL,
         energy_col=INFO_ENERGY_COL,
-        title=f'{key} — Episode {EPISODE}: comfort vs energy term (per timestep)',
+        title=None,
         color_comfort=colors[0],
         color_energy=colors[1],
         smooth_window=REWARD_TERMS_SMOOTH_WINDOW,
