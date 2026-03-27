@@ -21,7 +21,7 @@ fig.add_trace(go.Scatter(
     y=PPO_df['mean_reward'],
     mode='lines',
     name='PPO',
-    line=dict(color='#4c72b0', width=3),
+    line=dict(color='#1ABC9C', width=3),
     showlegend=True
 ))
 
@@ -30,7 +30,7 @@ fig.add_trace(go.Scatter(
     y=TQC_df['mean_reward'],
     mode='lines',
     name='TQC',
-    line=dict(color='#55a868', width=3),
+    line=dict(color='#3498DB', width=3),
     showlegend=True
 ))
 
@@ -39,7 +39,7 @@ fig.add_trace(go.Scatter(
     y=SAC_df['mean_reward'],
     mode='lines',
     name='SAC',
-    line=dict(color='#c44e52', width=3),
+    line=dict(color='#9B59B6', width=3),
     showlegend=True
 ))
 
@@ -47,8 +47,8 @@ fig.add_trace(go.Scatter(
     x=RPO_df['episode_num'],
     y=RPO_df['mean_reward'],
     mode='lines',
-    name='RPO',
-    line=dict(color='#999999', width=3),
+    name='RecPPO',
+    line=dict(color='#E74C3C', width=3),
     showlegend=True
 ))
 

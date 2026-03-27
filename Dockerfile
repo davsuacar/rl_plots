@@ -27,13 +27,26 @@ ENV PYTHONPATH=/home/jovyan/work/src
 #                        SYSTEM PACKAGES & USER                                #
 # ---------------------------------------------------------------------------- #
 
+# Dependencias gráficas (Plotly Kaleido / Chromium headless, Playwright, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
     curl \
     git \
-    libx11-6 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libcairo2 \
+    libcups2 \
     libexpat1 \
+    libgbm1 \
+    libnss3 \
+    libpango-1.0-0 \
+    libx11-6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
     wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

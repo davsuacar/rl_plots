@@ -131,8 +131,14 @@ def compute_crf_daily_stats(df, crf_col='crf', datetime_col='datetime'):
 # PLOTTING — LINES & PROGRESS
 # =============================================================================
 
+# Eje X para series temporales (datetime): solo mes abreviado (Jan, Feb, …)
+_DATETIME_X_AXIS_FORMAT = dict(dtick='M1', tickformat='%b', ticklabelmode='period')
 
-def plot_dfs_line(df_dict, variable_name, colors=None):
+# Patrones de línea para distinguir series en B/N (Plotly: solid, dash, dot, …)
+_LINE_DASH_CYCLE = ('solid', 'dash', 'dot', 'dashdot', 'longdash', 'longdashdot')
+
+
+def plot_dfs_line(df_dict, variable_name, colors=None, line_styles=None):
     """
     Genera un gráfico de líneas de progreso.
 
@@ -141,23 +147,33 @@ def plot_dfs_line(df_dict, variable_name, colors=None):
     - names: lista de nombres para cada línea
     - variable_name: nombre de la columna en los DataFrames que se desea graficar en el eje y
     - colors: lista opcional de colores para cada línea; si no se proporciona, se asignan colores predeterminados
+    - line_styles: lista opcional de dash de Plotly por traza; si es None, se cicla _LINE_DASH_CYCLE
     """
+    n = len(df_dict)
 
     # Colores predeterminados si no se especifican
     if colors is None:
-        colors = px.colors.qualitative.Plotly[: len(df_dict)]
+        colors = px.colors.qualitative.Plotly[:n]
+    if line_styles is None:
+        line_styles = [_LINE_DASH_CYCLE[i % len(_LINE_DASH_CYCLE)] for i in range(n)]
+    elif len(line_styles) < n:
+        ls = list(line_styles)
+        line_styles = (ls * ((n + len(ls) - 1) // len(ls)))[:n]
 
     # Crear figura
     fig = go.Figure()
 
     # Añadir líneas para cada DataFrame
-    for (name, df), color in zip(df_dict.items(), colors):
+    for (name, df), color, dash in zip(df_dict.items(), colors, line_styles):
+        line_kw = dict(color=color, width=2)
+        if dash is not None and str(dash).lower() != 'solid':
+            line_kw['dash'] = dash
         fig.add_trace(
             go.Scatter(
                 x=df['episode_num'],
                 y=df[variable_name],
                 mode='lines',
-                line=dict(color=color),
+                line=line_kw,
                 name=name,
             )
         )
@@ -361,7 +377,7 @@ def plot_episode_reward_terms_timestep(
         yaxis_title='Reward term (per timestep)',
         template='plotly_white',
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
-        xaxis=dict(dtick='M1', tickformat='%b\n%Y', ticklabelmode='period'),
+        xaxis=dict(**_DATETIME_X_AXIS_FORMAT),
         height=500,
         width=1000,
     )
@@ -456,9 +472,7 @@ def plot_control(
         xaxis=dict(
             title='Datetime',
             type='date',
-            dtick='M1',
-            tickformat='%d %b\n%Y',
-            ticklabelmode='period',
+            **_DATETIME_X_AXIS_FORMAT,
         ),
         yaxis=dict(title='Temperature (°C)', side='left'),
         yaxis2=dict(title='Flow rate', overlaying='y', side='right', showgrid=False),
@@ -527,7 +541,15 @@ def plot_smoothed_signal(
         title=title,
         xaxis_title='',
         yaxis_title=yaxis_title if yaxis_title is not None else variable,
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='center',
+            x=0.5,
+        ),
     )
+    fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     return fig
 
 
@@ -578,6 +600,7 @@ def plot_heat_work(
         xaxis_title='',
         yaxis_title='Temperature (°C)',
     )
+    fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     return fig
 
 
@@ -640,11 +663,7 @@ def plot_temperatures_v2(df, variables, names, upper_limit, lower_limit, colors=
         title=None,
         xaxis_title='',
         yaxis_title='Temperature (°C)',
-        xaxis=dict(
-            type='date',  # Forzar tipo fecha
-            dtick="M1",  # Mostrar cada mes
-            tickformat="%b",  # Formato: solo mes (Jan, Feb, Mar, etc.)
-        ),
+        xaxis=dict(type='date', **_DATETIME_X_AXIS_FORMAT),
         showlegend=True,
         legend=dict(
             orientation="v",
@@ -752,8 +771,7 @@ def plot_temperatures(
             )
         )
 
-    # Configurar formato del eje X para mostrar el mes abreviado
-    fig.update_xaxes(dtick="M1", tickformat="%b\n%Y", ticklabelmode="period")
+    fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
 
     # Configurar el layout
     fig.update_layout(
@@ -800,7 +818,8 @@ def plot_temperature_one_zone(
     """
     Una gráfica por zona térmica para un DataFrame: temperatura, setpoint variable en el tiempo
     y banda setpoint ± threshold (igual que plot_temperatures_subplots pero con temp/setpoint
-    especificados uno a uno). Pensada para llamarse en bucle por zona.
+    especificados uno a uno). Pensada para llamarse en bucle por zona. Cada serie usa color y
+    patrón de línea distintos (sólido, guiones, puntos…) para legibilidad en blanco y negro.
 
     Parámetros:
     - df: DataFrame con 'datetime', temp_var y setpoint_var
@@ -810,7 +829,8 @@ def plot_temperature_one_zone(
     - threshold: margen en °C para la banda (setpoint ± threshold)
     - temp_color: color opcional para la línea de temperatura
     - outdoor_temp_var: columna de temperatura exterior a dibujar en gris. Por defecto
-      'outdoor_temperature'; si existe en df se añade una línea gris. None para no mostrarla.
+      'outdoor_temperature'; si existe en df se añade una línea en eje Y derecho propio
+      (escala independiente del interior/setpoint). None para no mostrarla.
     """
     if 'datetime' not in df.columns:
         raise ValueError("El DataFrame debe contener la columna 'datetime'.")
@@ -823,31 +843,6 @@ def plot_temperature_one_zone(
 
     fig = go.Figure()
 
-    # Banda: setpoint ± threshold
-    down = df_copy[setpoint_var] - threshold
-    up = df_copy[setpoint_var] + threshold
-    fig.add_trace(
-        go.Scatter(
-            x=df_copy['datetime'],
-            y=down,
-            mode='lines',
-            line=dict(color='blue', dash='dot'),
-            showlegend=False,
-            hoverinfo='skip',
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df_copy['datetime'],
-            y=up,
-            mode='lines',
-            line=dict(color='red', dash='dot'),
-            fill='tonexty',
-            fillcolor='rgba(200, 200, 200, 0.4)',
-            showlegend=False,
-            hoverinfo='skip',
-        )
-    )
     # Línea de setpoint (varía con datetime)
     fig.add_trace(
         go.Scatter(
@@ -868,41 +863,58 @@ def plot_temperature_one_zone(
             y=df_copy[temp_var],
             mode='lines',
             name=zone_name,
-            line=dict(color=line_color),
+            line=dict(color=line_color, dash='solid', width=2),
             opacity=0.9,
         )
     )
-    # Línea de temperatura exterior (gris), por defecto si existe la columna
-    if outdoor_temp_var is not None and outdoor_temp_var in df_copy.columns:
+    has_outdoor = (
+        outdoor_temp_var is not None and outdoor_temp_var in df_copy.columns
+    )
+    # Línea de temperatura exterior: eje Y2 a la derecha, escala independiente
+    if has_outdoor:
         fig.add_trace(
             go.Scatter(
                 x=df_copy['datetime'],
                 y=df_copy[outdoor_temp_var],
                 mode='lines',
                 name='Outdoor temperature',
-                line=dict(color='gray', width=1),
+                yaxis='y2',
+                line=dict(color='gray', width=1.2, dash='dashdot'),
                 opacity=0.8,
             )
         )
 
-    fig.update_xaxes(dtick='M1', tickformat='%b\n%Y', ticklabelmode='period')
-    fig.update_layout(
+    fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
+    layout = dict(
         title=None,
         xaxis_title='',
-        yaxis_title='Temperature (°C)',
+        yaxis=dict(
+            title='Temperature (°C)',
+            side='left',
+            showgrid=True,
+        ),
         showlegend=True,
         legend=dict(
-            orientation='v',
-            yanchor='middle',
-            y=0.5,
-            xanchor='left',
-            x=1.02,
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='center',
+            x=0.5,
             font=dict(size=14),
         ),
         font=dict(family='Arial, sans-serif', size=14, color='black'),
         width=1000,
         height=500,
     )
+    if has_outdoor:
+        layout['yaxis2'] = dict(
+            title=dict(text='Outdoor temperature (°C)', font=dict(color='gray')),
+            overlaying='y',
+            side='right',
+            showgrid=False,
+            tickfont=dict(color='gray'),
+        )
+    fig.update_layout(**layout)
     return fig
 
 
@@ -1003,7 +1015,7 @@ def plot_temperatures_subplots(
             col=col,
         )
 
-    fig.update_xaxes(dtick="M1", tickformat="%b\n%Y", ticklabelmode="period")
+    fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     fig.update_layout(
         title=None,
         height=250 * nrows,
@@ -1074,10 +1086,86 @@ def plot_dfs_line_grouped_by_month(df_dict, variable, colors=None, line_styles=N
         xaxis_title=None,
         yaxis_title='Power demand (W)',
         xaxis=dict(
-            tickformat='%b %Y',  # Formato de mes y año
-            tickvals=tickvals,  # Fechas seleccionadas como ticks
-            tickangle=45,  # Ángulo para que las etiquetas no se superpongan
+            type='date',
+            **_DATETIME_X_AXIS_FORMAT,
+            tickvals=tickvals,
+            tickangle=45,
         ),
+        showlegend=True,
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=20),
+        ),
+        height=600,
+        width=1000,
+    )
+
+    # Devolver la figura
+    return fig
+
+
+def plot_dfs_bar_grouped_by_month(df_dict, variable, colors=None):
+    """
+    Gráfico de barras agrupado por meses de la variable deseada.
+    df_dict: dict nombre -> DataFrame (ej. unified).
+    variable: nombre de la columna a graficar.
+    """
+    names = list(df_dict.keys())
+    dfs = list(df_dict.values())
+
+    if colors is None:
+        colors = px.colors.qualitative.Plotly[: len(dfs)]
+
+    # Crear figura
+    fig = go.Figure()
+
+    # Para cada DataFrame, calcular la media mensual de variable
+    all_dates = []  # Lista para almacenar todas las fechas (meses) únicas
+    for df, name, color in zip(dfs, names, colors):
+        # Calcular la media mensual
+        monthly_df = df.copy()
+        monthly_df['year_month'] = pd.to_datetime(monthly_df['datetime']).dt.to_period('M')
+        monthly_avg = monthly_df.groupby('year_month')[variable].mean().reset_index()
+        # Convertir de nuevo a datetime
+        monthly_avg['year_month'] = monthly_avg['year_month'].dt.to_timestamp()
+
+        # Añadir las fechas únicas al conjunto de fechas para el tick en el eje X
+        all_dates.extend(monthly_avg['year_month'].tolist())
+
+        # Añadir barras de la media mensual al gráfico
+        fig.add_trace(
+            go.Bar(
+                x=monthly_avg['year_month'],
+                y=monthly_avg[variable],
+                name=name,
+                marker_color=color,
+            )
+        )
+
+    # Filtrar las fechas únicas y seleccionar 5 fechas espaciadas uniformemente
+    unique_dates = sorted(list(set(all_dates)))
+    tickvals = [
+        unique_dates[i]
+        for i in range(0, len(unique_dates), max(1, len(unique_dates) // 5))
+    ]
+
+    # Configurar el layout
+    fig.update_layout(
+        title=None,
+        xaxis_title=None,
+        yaxis_title='Power demand (W)',
+        xaxis=dict(
+            type='date',
+            **_DATETIME_X_AXIS_FORMAT,
+            tickvals=tickvals,
+            tickangle=45,
+        ),
+        barmode='group',
         showlegend=True,
         font=dict(family="Arial, sans-serif", size=20, color="black"),
         legend=dict(
@@ -1129,7 +1217,7 @@ def plot_bar(dict_data, bar_colors=None):
         title="Gráfico de Barras con Colores Personalizados",
         xaxis_title="Categorías",
         yaxis_title="Valores",
-        template="plotly_white",
+        font=dict(family="Arial, sans-serif", size=20, color="black")
     )
 
     return fig
@@ -1452,6 +1540,11 @@ def plot_action_distribution(df_dict, variable, colors=None):
         colors = px.colors.qualitative.Plotly[: len(names)]
 
     fig = go.Figure()
+    mean_x = []
+    mean_y = []
+    mean_colors = []
+    plotted_names = []
+
     for i, df in enumerate(dfs):
         if variable not in df.columns:
             continue
@@ -1465,13 +1558,19 @@ def plot_action_distribution(df_dict, variable, colors=None):
         q1_v = float(np.quantile(values, 0.25))
         q3_v = float(np.quantile(values, 0.75))
 
+        model_name = names[i]
+        plotted_names.append(model_name)
+        mean_x.append(model_name)
+        mean_y.append(mean_v)
+        mean_colors.append(colors[i])
+
         fig.add_trace(
             go.Violin(
                 y=values,
-                x=[names[i]] * len(values),
-                name=names[i],
+                x=[model_name] * len(values),
+                name=model_name,
                 box_visible=True,  # mediana + cuartiles
-                meanline_visible=True,  # media
+                meanline_visible=False,  # la media se marca con un punto (Scatter)
                 points='outliers',  # simple y claro; evita ruido de todos los puntos
                 quartilemethod='inclusive',
                 scalemode='width',
@@ -1480,7 +1579,7 @@ def plot_action_distribution(df_dict, variable, colors=None):
                 fillcolor=colors[i],
                 opacity=0.45,
                 hovertemplate=(
-                    f'Model: {names[i]}'
+                    f'Model: {model_name}'
                     f'<br>Mean: {mean_v:.4f}'
                     f'<br>Median: {median_v:.4f}'
                     f'<br>Q1: {q1_v:.4f}'
@@ -1490,20 +1589,49 @@ def plot_action_distribution(df_dict, variable, colors=None):
             )
         )
 
-    # Layout update
-    fig.update_layout(
+    # Media: misma categoría X que el violín. Con violinmode='group', Plotly agrupa violín + scatter
+    # en paralelo y el violín queda desplazado respecto a la etiqueta; 'overlay' centra ambos.
+    if mean_x:
+        fig.add_trace(
+            go.Scatter(
+                x=mean_x,
+                y=mean_y,
+                mode='markers',
+                name='Mean',
+                marker=dict(
+                    size=10,
+                    color=mean_colors,
+                    symbol='circle',
+                    line=dict(width=1.5, color='white'),
+                ),
+                hovertemplate='Model: %{x}<br>Mean: %{y:.4f}<extra></extra>',
+            )
+        )
+
+    # Eje X: orden explícito (Plotly ordena categorías alfabéticamente por defecto).
+    # tickvals/ticktext solo con modelos que tienen violín (evita desajuste si falta columna).
+    layout_kwargs = dict(
         title=f'{variable} distribution',
         xaxis_title='Model',
         yaxis_title=variable,
-        violinmode='group',
-        xaxis=dict(tickmode='array', tickvals=names, ticktext=names),
+        violinmode='overlay',
     )
+    if plotted_names:
+        layout_kwargs['xaxis'] = dict(
+            type='category',
+            categoryorder='array',
+            categoryarray=plotted_names,
+            tickmode='array',
+            tickvals=plotted_names,
+            ticktext=plotted_names,
+        )
+    fig.update_layout(**layout_kwargs)
 
-    # Show figure
     return fig
 
 
-def plot_dfs_boxplot(df_dict, variable, colors=None):
+def plot_dfs_boxplot(df_dict, variable, colors=None, yaxis_title=None,
+        xaxis_title=None, title=None):
     """
     Gráfico de cajas para comparar una variable entre experimentos.
     df_dict: nombre -> DataFrame.
@@ -1530,8 +1658,8 @@ def plot_dfs_boxplot(df_dict, variable, colors=None):
     # Configurar el layout
     fig.update_layout(
         title=None,
-        yaxis_title=None,
-        xaxis_title=None,
+        yaxis_title=yaxis_title,
+        xaxis_title=xaxis_title,
         showlegend=False,  # No mostrar la leyenda, los nombres están en el eje X
         font=dict(family="Arial, sans-serif", size=20, color="black"),
         width=1000,  # Ancho de la figura
@@ -1618,7 +1746,10 @@ def plot_energy_savings(data, names_reference, names_comparison, variable, color
     # Configurar el eje X y diseño del gráfico
     x_values = ref_means[0].index.to_timestamp()
     fig.update_xaxes(
-        tickvals=x_values, ticktext=x_values.strftime('%b'), ticklabelposition='outside'
+        type='date',
+        tickvals=x_values,
+        ticklabelposition='outside',
+        **_DATETIME_X_AXIS_FORMAT,
     )
     fig.update_layout(
         title=None,
