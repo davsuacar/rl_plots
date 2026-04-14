@@ -543,6 +543,7 @@ def plot_smoothed_signal(
         title=title,
         xaxis_title='',
         yaxis_title=yaxis_title if yaxis_title is not None else variable,
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
         legend=dict(
             orientation='h',
             yanchor='bottom',
@@ -1535,9 +1536,13 @@ def plot_bar_groups_v2(dict_data):
 
 
 def _variable_name_to_axis_label(name: str) -> str:
-    """Etiqueta de eje a partir de nombre de columna: '_' → espacio, solo la 1.ª letra en mayúscula."""
-    s = str(name).replace('_', ' ').strip().lower()
-    return (s[0].upper() + s[1:]) if s else str(name)
+    """Etiqueta de eje: '_' → espacio, solo la 1.ª letra en mayúscula; ``water_temperature`` añade ``(ºC)``."""
+    raw = str(name)
+    s = raw.replace('_', ' ').strip().lower()
+    out = (s[0].upper() + s[1:]) if s else raw
+    if raw == 'water_temperature':
+        out = f'{out} (ºC)'
+    return out
 
 
 def plot_action_distribution(df_dict, variable, colors=None):
@@ -2201,13 +2206,25 @@ def plot_case_temperatures(
                 tickfont=dict(color="gray"),
             )
 
+    # Eje X: solo mes (sin año); mismo criterio en figuras sueltas más abajo.
+    _xaxis_month_only = dict(tickformat="%b")
+    fig.update_xaxes(**_xaxis_month_only)
+
     grid_title = summary_title.strip() or f"case{case_id}"
     grid_height = max(300 * nrows, 600)
     fig.update_layout(
-        title=f"{grid_title} – All rooms",
+        title=None,
         height=grid_height,
         template="plotly_white",
         hovermode=False,
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+        ),
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -2239,6 +2256,8 @@ def plot_case_temperatures(
         layout_updates = dict(
             title=f"{grid_title} – {room_title}",
             yaxis_title="Temperature (°C)",
+            xaxis=_xaxis_month_only,
+            font=dict(family="Arial, sans-serif", size=20, color="black"),
             template="plotly_white",
             height=500,
             hovermode=False,
@@ -2272,7 +2291,9 @@ def plot_case_temperatures(
             ld = dict(
                 title=f"{grid_title} – {room_title} (daily: {daily_date.date()})",
                 yaxis_title="Temperature (°C)",
+                xaxis=_xaxis_month_only,
                 template="plotly_white",
+                font=dict(family="Arial, sans-serif", size=20, color="black"),
                 height=500,
                 hovermode=False,
             )
@@ -2306,7 +2327,9 @@ def plot_case_temperatures(
                     f"{week_start.date()} to {week_end.date()})"
                 ),
                 yaxis_title="Temperature (°C)",
+                xaxis=_xaxis_month_only,
                 template="plotly_white",
+                font=dict(family="Arial, sans-serif", size=20, color="black"),
                 height=500,
                 hovermode=False,
             )
@@ -2340,9 +2363,11 @@ def plot_case_temperatures(
                     f"{month_start.date()} to {month_end.date()})"
                 ),
                 yaxis_title="Temperature (°C)",
+                xaxis=_xaxis_month_only,
                 template="plotly_white",
                 height=500,
                 hovermode=False,
+                font=dict(family="Arial, sans-serif", size=20, color="black"),
                 #xaxis=dict(rangeslider=dict(visible=True), type="date"),
             )
             if added_om:
