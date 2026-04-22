@@ -7,7 +7,10 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 from plotly.subplots import make_subplots
+
+pio.templates.default = "plotly_white"
 
 ROOT = Path(__file__).resolve().parents[0]
 
@@ -572,7 +575,7 @@ def plot_case_temperatures(
             xaxis=dict(rangeslider=dict(visible=True), type="date"),
         )
 
-        fig_r.write_html(room_dir / "temperature. html")
+        fig_r.write_html(room_dir / "temperature.html")
 
         # Daily zoom
         if not obs_daily.empty:
@@ -589,6 +592,8 @@ def plot_case_temperatures(
                 template="plotly_white",
                 height=500,
                 hovermode=False,
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#ffffff",
             )
 
             fig_d.write_html(room_dir / "daily_temperature.html")
@@ -609,6 +614,8 @@ def plot_case_temperatures(
                 template="plotly_white",
                 height=500,
                 hovermode=False,
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#ffffff",
             )
 
             fig_w.write_html(room_dir / "weekly_temperature.html")
@@ -629,6 +636,8 @@ def plot_case_temperatures(
                 template="plotly_white",
                 height=500,
                 hovermode=False,
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#ffffff",
                 xaxis=dict(
                     rangeslider=dict(
                         visible=True),
