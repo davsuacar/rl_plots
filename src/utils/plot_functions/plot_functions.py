@@ -8,7 +8,18 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import plotly.subplots as sp
+
+# Fondo blanco unificado (Plotly por defecto suele usar la plantilla "plotly", más oscura).
+pio.templates.default = "plotly_white"
+
+# Para merge en ``update_layout`` / exportación (también importable desde otros scripts).
+PLOTLY_WHITE_LAYOUT_KWARGS = dict(
+    template="plotly_white",
+    paper_bgcolor="#ffffff",
+    plot_bgcolor="#ffffff",
+)
 
 # =============================================================================
 # DATETIME & I/O PREPROCESSING
@@ -70,9 +81,12 @@ def save_figure(fig, path_stem, width=1200, height=700, scale=2):
     """
     Guarda la figura en PNG (alta calidad) y HTML.
     path_stem: Path o str sin extensión (ej. output_dir / 'nombre').
+    ``width``/``height`` se aplican también a ``layout`` para que el HTML y el PNG
+    (Kaleido) compartan la misma geometría y no diverjan márgenes o ejes.
     """
     path_stem = Path(path_stem)
     path_stem.parent.mkdir(parents=True, exist_ok=True)
+    fig.update_layout(width=width, height=height, **PLOTLY_WHITE_LAYOUT_KWARGS)
     try:
         fig.write_image(
             str(path_stem.with_suffix('.png')),
@@ -196,6 +210,7 @@ def plot_dfs_line(df_dict, variable_name, colors=None, line_styles=None):
         ),
         height=600,
         width=1000,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -514,6 +529,7 @@ def plot_control(
         width=1000,
         height=600,
         title=None,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     return fig
@@ -575,6 +591,7 @@ def plot_smoothed_signal(
             xanchor='center',
             x=0.5,
         ),
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     return fig
@@ -626,6 +643,7 @@ def plot_heat_work(
         title=title,
         xaxis_title='',
         yaxis_title='Temperature (°C)',
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     return fig
@@ -702,6 +720,7 @@ def plot_temperatures_v2(df, variables, names, upper_limit, lower_limit, colors=
         ),
         width=1000,
         height=600,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     return fig
@@ -817,6 +836,7 @@ def plot_temperatures(
         font=dict(family="Arial, sans-serif", size=16, color="black"),
         width=1000,
         height=600,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -913,6 +933,7 @@ def plot_temperature_one_zone(
 
     fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     layout = dict(
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
         title=None,
         xaxis_title='',
         yaxis=dict(
@@ -1049,6 +1070,7 @@ def plot_temperatures_subplots(
         width=1000,
         showlegend=False,
         font=dict(family="Arial, sans-serif", size=12, color="black"),
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     fig.update_yaxes(title_text="Temperature (°C)", row="all", col=1)
     return fig
@@ -1130,6 +1152,7 @@ def plot_dfs_line_grouped_by_month(df_dict, variable, colors=None, line_styles=N
         ),
         height=600,
         width=1000,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -1205,6 +1228,7 @@ def plot_dfs_bar_grouped_by_month(df_dict, variable, colors=None):
         ),
         height=600,
         width=1000,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -1245,7 +1269,8 @@ def plot_bar(dict_data, bar_colors=None):
         title="Gráfico de Barras con Colores Personalizados",
         xaxis_title="Categorías",
         yaxis_title="Valores",
-        font=dict(family="Arial, sans-serif", size=20, color="black")
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     return fig
@@ -1649,6 +1674,7 @@ def plot_action_distribution(df_dict, variable, colors=None):
     # Eje X: orden explícito (Plotly ordena categorías alfabéticamente por defecto).
     # tickvals/ticktext solo con modelos que tienen violín (evita desajuste si falta columna).
     layout_kwargs = dict(
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
         title=f'{variable} distribution',
         xaxis_title='Model',
         yaxis_title=_variable_name_to_axis_label(variable),
@@ -1703,6 +1729,7 @@ def plot_dfs_boxplot(df_dict, variable, colors=None, yaxis_title=None,
         font=dict(family="Arial, sans-serif", size=20, color="black"),
         width=1000,  # Ancho de la figura
         height=600,  # Alto de la figura
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -1809,6 +1836,7 @@ def plot_energy_savings(data, names_reference, names_comparison, variable, color
         ),
         height=600,
         width=1000,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -1859,6 +1887,7 @@ def plot_mean_energy_savings(
         title=f'Comparative mean energy consumption savings vs {ref_label}',
         xaxis_title='',
         yaxis_title='Mean energy consumption savings (%)',
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     return fig
 
@@ -1899,7 +1928,7 @@ def plot_summary_data(data):
         title='Comparison of Metrics: With vs Without Weather',
         height=400 * num_rows,
         showlegend=False,
-        template='plotly_white',
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     return fig
@@ -2151,6 +2180,7 @@ def _export_plotly_figure(
     """Write ``path_stem`` + ``.html`` or ``.png`` (requires kaleido for PNG)."""
     path_stem = Path(path_stem)
     path_stem.parent.mkdir(parents=True, exist_ok=True)
+    fig.update_layout(width=png_width, height=png_height, **PLOTLY_WHITE_LAYOUT_KWARGS)
     if export_format == "html":
         fig.write_html(str(path_stem.with_suffix(".html")))
         return
@@ -2295,8 +2325,11 @@ def plot_case_temperatures(
 
     grid_title = summary_title.strip() or f"case{case_id}"
     grid_height = max(300 * nrows, 600)
+    # width/height en layout: Kaleido usa las mismas dimensiones que write_image;
+    # si solo se pasan a write_image, la anotación del eje Y puede solaparse con los ticks.
     fig.update_layout(
         title=None,
+        width=png_width,
         height=grid_height,
         template="plotly_white",
         hovermode=False,
@@ -2308,6 +2341,20 @@ def plot_case_temperatures(
             xanchor="center",
             x=0.5,
         ),
+        margin=dict(l=130, r=25, b=40),
+    )
+    # Una sola etiqueta de eje Y para la rejilla (temperatura interior); evita repetir en cada zona.
+    fig.add_annotation(
+        text="Temperature (°C)",
+        xref="paper",
+        yref="paper",
+        x=-0.082,
+        y=0.5,
+        xanchor="center",
+        yanchor="middle",
+        textangle=-90,
+        showarrow=False,
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)

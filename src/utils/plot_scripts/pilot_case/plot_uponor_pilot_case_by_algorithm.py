@@ -36,7 +36,7 @@ from utils.plot_functions.plot_functions import (
 # CONFIG — DATA PATHS & EXPERIMENTS
 # =============================================================================
 
-DATA_DIR = '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso3'
+DATA_DIR = '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1'
 EPISODE = 2
 
 
@@ -44,7 +44,7 @@ EXPERIMENTS = {
     'PPO': 'PPO/Eplus-PPO-radiant_case1_heating-Example_2026-03-16_13:32-res1',
     'TQC': 'TQC/Eplus-TQC-radiant_case1_heating-Example_2026-03-19_08:28-res1',
     'SAC': 'SAC/Eplus-SAC-radiant_case1_heating-Example_2026-03-16_13:42-res1',
-    'RecPPO': 'RecPPO/Eplus-RecurrentPPO-radiant_case1_heating-Example_2026-03-16_13:41-res1'
+    'RecPPO': 'RPO/Eplus-RecurrentPPO-radiant_case1_heating-Example_2026-03-16_13:41-res1'
 }
 
 # Progress del ENTRENAMIENTO (mean_reward por episodio). Rutas externas a DATA_DIR.
@@ -54,7 +54,7 @@ TRAINING_PROGRESS_PATHS: dict[str, str] = {
     'PPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/PPO/training/progress.csv',
     'TQC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/TQC/training/progress.csv',
     'SAC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/SAC/training/progress.csv',
-    'RecPPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/RecPPO/training/progress.csv',
+    'RecPPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/RPO/training/progress.csv',
 }
 
 names_reference = []
@@ -79,9 +79,14 @@ SMOOTH_WINDOW = 1
 # CONFIG — OUTPUT DIRECTORIES (subcarpetas por tipo de gráfico)
 # =============================================================================
 
-OUTPUT_BASE = Path('/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_3')
+OUTPUT_BASE = Path('/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_1')
 OUTPUT_PROGRESS = OUTPUT_BASE / 'progress'
 OUTPUT_ZONE_TEMPERATURES = OUTPUT_BASE / 'zone_temperatures'
+
+# plot_case_temperatures alinea layout con el PNG (Kaleido): mismo ancho/alto evita que
+# etiquetas de ejes respecto al HTML redimensionado.
+ZONE_TEMP_EXPORT_WIDTH_PX = 1200
+ZONE_TEMP_EXPORT_SINGLE_HEIGHT_PX = 500
 OUTPUT_TEMP_VS_FLOW = OUTPUT_BASE / 'temp_vs_flow'
 OUTPUT_HEAT_PUMP_AND_CONTROL = OUTPUT_BASE / 'heat_pump_and_control'
 OUTPUT_HEAT_WORK = OUTPUT_BASE / 'heat_work'
@@ -322,8 +327,8 @@ for key, df in unified.items():
         summary_title=key,
         threshold=TEMPERATURE_THRESHOLD,
         outdoor_temp_var=None,
-        png_width=1200,
-        png_height_single=500,
+        png_width=ZONE_TEMP_EXPORT_WIDTH_PX,
+        png_height_single=ZONE_TEMP_EXPORT_SINGLE_HEIGHT_PX,
         png_scale=2,
         temp_colors=['#1ABC9C', '#1ABC9C', '#1ABC9C', '#1ABC9C', '#1ABC9C']
     )
