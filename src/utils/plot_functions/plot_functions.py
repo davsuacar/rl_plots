@@ -2225,7 +2225,6 @@ def plot_case_temperatures(
             temp_color=colors_seq[i],
             outdoor_temp_var=outdoor_temp_var,
         )
-        fig.update_yaxes(title_text="Temperature (°C)", row=row, col=col, secondary_y=False)
         if has_outdoor:
             fig.update_yaxes(
                 title=dict(text="Outdoor (°C)", font=dict(color="gray")),
@@ -2258,6 +2257,20 @@ def plot_case_temperatures(
             xanchor="center",
             x=0.5,
         ),
+        margin=dict(l=130, r=25, b=40),
+    )
+    # Una sola etiqueta de eje Y para la rejilla (temperatura interior); evita repetir en cada zona.
+    fig.add_annotation(
+        text="Temperature (°C)",
+        xref="paper",
+        yref="paper",
+        x=-0.082,
+        y=0.5,
+        xanchor="center",
+        yanchor="middle",
+        textangle=-90,
+        showarrow=False,
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)

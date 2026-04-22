@@ -585,9 +585,10 @@ def plot_case_temperatures(
             )
 
             fig_d.update_layout(
-                title=f'{
-                    case_cfg["name"]} – {room_title} (daily:  {
-                    daily_date.date()})',
+                title=(
+                    f'{case_cfg["name"]} – {room_title} '
+                    f'(daily: {daily_date.date()})'
+                ),
                 yaxis_title="Temperature (°C)",
                 template="plotly_white",
                 height=500,
@@ -606,10 +607,10 @@ def plot_case_temperatures(
             )
 
             fig_w.update_layout(
-                title=f'{
-                    case_cfg["name"]} – {room_title} (weekly: {
-                    week_start. date()} to {
-                    week_end.date()})',
+                title=(
+                    f'{case_cfg["name"]} – {room_title} (weekly: '
+                    f'{week_start.date()} to {week_end.date()})'
+                ),
                 yaxis_title="Temperature (°C)",
                 template="plotly_white",
                 height=500,
@@ -628,10 +629,10 @@ def plot_case_temperatures(
             )
 
             fig_m.update_layout(
-                title=f'{
-                    case_cfg["name"]} – {room_title} (monthly: {
-                    month_start.date()} to {
-                    month_end.date()})',
+                title=(
+                    f'{case_cfg["name"]} – {room_title} (monthly: '
+                    f'{month_start.date()} to {month_end.date()})'
+                ),
                 yaxis_title="Temperature (°C)",
                 template="plotly_white",
                 height=500,
