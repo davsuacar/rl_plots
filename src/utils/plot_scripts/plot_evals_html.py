@@ -10,6 +10,11 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from plotly.subplots import make_subplots
 
+from utils.plot_functions.plot_functions import (
+    PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
+    PLOTLY_SUBPLOT_VERTICAL_SPACING,
+)
+
 pio.templates.default = "plotly_white"
 
 ROOT = Path(__file__).resolve().parents[0]
@@ -513,8 +518,8 @@ def plot_case_temperatures(
             "Bedroom 2",
             "Bedroom 3",
         ],
-        vertical_spacing=0.12,
-        horizontal_spacing=0.1,
+        vertical_spacing=PLOTLY_SUBPLOT_VERTICAL_SPACING,
+        horizontal_spacing=PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
     )
 
     for i, (temp_col, sp_col) in enumerate(zip(TEMP_COLS, SETPOINT_COLS)):
@@ -529,7 +534,7 @@ def plot_case_temperatures(
 
     fig.update_layout(
         title=f'{case_cfg["name"]} – {case_cfg["agent"]} – All Rooms',
-        height=900,
+        height=760,
         template="plotly_white",
         hovermode=False,
     )

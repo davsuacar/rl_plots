@@ -21,6 +21,120 @@ PLOTLY_WHITE_LAYOUT_KWARGS = dict(
     plot_bgcolor="#ffffff",
 )
 
+# --- Estilo paper (equiv. sample_plots: seaborn-v0_8-whitegrid + serif rcParams) ---
+_PLOTLY_SERIF = (
+    'DejaVu Serif, Bitstream Vera Serif, Georgia, Times New Roman, serif'
+)
+# Casi negro para impresión / PDF de artículo
+_PLOTLY_TEXT = '#0a0a0a'
+_PLOTLY_GRID = '#cccccc'
+PLOTLY_TRACE_LINE_WIDTH = 1.8
+
+# Banda setpoint ± umbral (temperaturas): mismo matiz que el relleno; borde ~14 % más oscuro.
+_COMFORT_BAND_FILLCOLOR = 'rgba(255, 165, 0, 0.2)'
+_COMFORT_BAND_ORANGE_RGB = (255, 165, 0)
+_COMFORT_BAND_EDGE_RGB = tuple(
+    int(round(c * 0.86)) for c in _COMFORT_BAND_ORANGE_RGB
+)
+_COMFORT_BAND_EDGE_COLOR = (
+    f'rgb({_COMFORT_BAND_EDGE_RGB[0]}, {_COMFORT_BAND_EDGE_RGB[1]}, {_COMFORT_BAND_EDGE_RGB[2]})'
+)
+
+# Tamaños coherentes en todas las facetas (leyenda, ejes, títulos)
+PLOTLY_PAPER_FONT_SIZE = 15
+PLOTLY_PAPER_TICK_SIZE = 14
+PLOTLY_PAPER_AXIS_TITLE_SIZE = 15
+PLOTLY_PAPER_TITLE_SIZE = 17
+PLOTLY_PAPER_LEGEND_SIZE = 14
+
+# make_subplots: menos hueco entre paneles (Plotly no tiene tight_layout; dominios normalizados 0–1).
+PLOTLY_SUBPLOT_VERTICAL_SPACING = 0.06
+PLOTLY_SUBPLOT_HORIZONTAL_SPACING = 0.055
+
+PLOTLY_PAPER_STYLE_AXIS = dict(
+    showgrid=True,
+    gridcolor=_PLOTLY_GRID,
+    gridwidth=1,
+    griddash='solid',
+    zeroline=False,
+    showline=True,
+    linewidth=1,
+    linecolor=_PLOTLY_GRID,
+    mirror=False,
+    ticks='outside',
+    ticklen=0,
+    tickcolor=_PLOTLY_TEXT,
+    tickfont=dict(family=_PLOTLY_SERIF, size=PLOTLY_PAPER_TICK_SIZE, color=_PLOTLY_TEXT),
+    title=dict(
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_AXIS_TITLE_SIZE,
+            color=_PLOTLY_TEXT,
+        )
+    ),
+)
+
+PLOTLY_PAPER_STYLE_LAYOUT = dict(
+    paper_bgcolor='white',
+    plot_bgcolor='white',
+    font=dict(family=_PLOTLY_SERIF, size=PLOTLY_PAPER_FONT_SIZE, color=_PLOTLY_TEXT),
+    title=dict(
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_TITLE_SIZE,
+            color=_PLOTLY_TEXT,
+        )
+    ),
+    legend=dict(
+        bgcolor='rgba(0,0,0,0)',
+        borderwidth=0,
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_LEGEND_SIZE,
+            color=_PLOTLY_TEXT,
+        ),
+    ),
+)
+
+
+def apply_plotly_paper_style(
+    fig: go.Figure,
+    *,
+    line_width: Optional[float] = None,
+) -> go.Figure:
+    """Misma estética que ``sample_plots/boxplots.py`` (matplotlib) aplicada a Plotly."""
+    lw = PLOTLY_TRACE_LINE_WIDTH if line_width is None else line_width
+    fig.update_layout(**PLOTLY_PAPER_STYLE_LAYOUT)
+    fig.update_xaxes(**PLOTLY_PAPER_STYLE_AXIS)
+    fig.update_yaxes(**PLOTLY_PAPER_STYLE_AXIS)
+    try:
+        fig.update_yaxes(
+            showgrid=False,
+            linewidth=1,
+            linecolor=_PLOTLY_GRID,
+            tickcolor='gray',
+            tickfont=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_TICK_SIZE,
+                color='gray',
+            ),
+            title=dict(
+                font=dict(
+                    family=_PLOTLY_SERIF,
+                    size=PLOTLY_PAPER_AXIS_TITLE_SIZE,
+                    color='gray',
+                )
+            ),
+            secondary_y=True,
+        )
+    except Exception:
+        pass
+    fig.update_traces(
+        line=dict(width=lw),
+        selector=dict(type='scatter'),
+    )
+    return fig
+
 
 def _hex_to_rgba(hex_color: str, alpha: float = 0.15) -> str:
     """``#RRGGBB`` → ``rgba(r,g,b,alpha)`` para rellenos alineados con el color de línea."""
@@ -85,16 +199,19 @@ def resample(df):
 # =============================================================================
 
 
-def save_figure(fig, path_stem, width=1200, height=700, scale=2):
+def save_figure(fig, path_stem, width=1200, height=700, scale=2, paper_style=True):
     """
     Guarda la figura en PNG (alta calidad) y HTML.
     path_stem: Path o str sin extensión (ej. output_dir / 'nombre').
     ``width``/``height`` se aplican también a ``layout`` para que el HTML y el PNG
     (Kaleido) compartan la misma geometría y no diverjan márgenes o ejes.
+    ``paper_style``: serif + rejilla gris claro (equiv. sample_plots matplotlib).
     """
     path_stem = Path(path_stem)
     path_stem.parent.mkdir(parents=True, exist_ok=True)
     fig.update_layout(width=width, height=height, **PLOTLY_WHITE_LAYOUT_KWARGS)
+    if paper_style:
+        apply_plotly_paper_style(fig)
     try:
         fig.write_image(
             str(path_stem.with_suffix('.png')),
@@ -207,14 +324,22 @@ def plot_dfs_line(df_dict, variable_name, colors=None, line_styles=None):
         title=None,
         xaxis_title='Datetime',
         yaxis_title=None,
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=20),
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         ),
         height=600,
         width=1000,
@@ -340,7 +465,11 @@ def plot_training_reward_terms_progression(
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
         height=500,
         width=1000,
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
     )
     return fig
 
@@ -406,7 +535,11 @@ def plot_episode_reward_terms_timestep(
         xaxis=dict(**_DATETIME_X_AXIS_FORMAT),
         height=500,
         width=1000,
-        font = dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_FONT_SIZE,
+            color=_PLOTLY_TEXT,
+        ),
     )
     return fig
 
@@ -527,14 +660,22 @@ def plot_control(
         ),
         yaxis=yaxis_primary,
         yaxis2=dict(title='Flow rate', overlaying='y', side='right', showgrid=False),
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         legend=dict(
             orientation="v",
             yanchor="middle",
             y=0.5,
             xanchor="left",
             x=1.05,
-            font=dict(size=20),
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         ),
         width=1000,
         height=600,
@@ -558,6 +699,7 @@ def plot_smoothed_signal(
     color='#2980B9',
     title=None,
     yaxis_title=None,
+    show_legend=True,
 ):
     """Plot raw and rolling-mean versions of one signal."""
     if datetime_col not in df.columns:
@@ -589,20 +731,27 @@ def plot_smoothed_signal(
             line=dict(color=color, width=2),
         )
     )
-    fig.update_layout(
+    _layout = dict(
         title=title,
         xaxis_title='',
         yaxis_title=yaxis_title if yaxis_title is not None else variable,
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
-        legend=dict(
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_FONT_SIZE,
+            color=_PLOTLY_TEXT,
+        ),
+        showlegend=show_legend,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
+    )
+    if show_legend:
+        _layout['legend'] = dict(
             orientation='h',
             yanchor='bottom',
             y=1.02,
             xanchor='center',
             x=0.5,
-        ),
-        **PLOTLY_WHITE_LAYOUT_KWARGS,
-    )
+        )
+    fig.update_layout(**_layout)
     fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     return fig
 
@@ -653,7 +802,11 @@ def plot_heat_work(
         title=title,
         xaxis_title='',
         yaxis_title='Temperature (°C)',
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
@@ -727,7 +880,11 @@ def plot_temperatures_v2(df, variables, names, upper_limit, lower_limit, colors=
             y=0.5,
             xanchor="left",
             x=1.05,
-            font=dict(size=20),
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         ),
         width=1000,
         height=600,
@@ -842,9 +999,17 @@ def plot_temperatures(
             y=0.5,
             xanchor="left",
             x=1.05,
-            font=dict(size=20),
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         ),
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         width=1000,
         height=600,
         **PLOTLY_WHITE_LAYOUT_KWARGS,
@@ -959,9 +1124,17 @@ def plot_temperature_one_zone(
             y=1.02,
             xanchor='center',
             x=0.5,
-            font=dict(size=20),
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         ),
-        font=dict(family='Arial, sans-serif', size=20, color='black'),
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_FONT_SIZE,
+            color=_PLOTLY_TEXT,
+        ),
         width=1000,
         height=500,
     )
@@ -1023,8 +1196,8 @@ def plot_temperatures_subplots(
         rows=nrows,
         cols=ncols,
         subplot_titles=subplot_titles,
-        vertical_spacing=0.10,
-        horizontal_spacing=0.08,
+        vertical_spacing=PLOTLY_SUBPLOT_VERTICAL_SPACING,
+        horizontal_spacing=PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
     )
     if colors is None:
         colors = px.colors.qualitative.Plotly[:n]
@@ -1077,10 +1250,14 @@ def plot_temperatures_subplots(
     fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     fig.update_layout(
         title=None,
-        height=250 * nrows,
+        height=max(220 * nrows, 400),
         width=1000,
         showlegend=False,
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     fig.update_yaxes(title_text="Temperature (°C)", row="all", col=1)
@@ -1152,14 +1329,22 @@ def plot_dfs_line_grouped_by_month(df_dict, variable, colors=None, line_styles=N
             tickangle=45,
         ),
         showlegend=True,
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=20),
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         ),
         height=600,
         width=1000,
@@ -1228,14 +1413,22 @@ def plot_dfs_bar_grouped_by_month(df_dict, variable, colors=None):
         ),
         barmode='group',
         showlegend=True,
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=20),
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         ),
         height=600,
         width=1000,
@@ -1280,7 +1473,11 @@ def plot_bar(dict_data, bar_colors=None):
         title="Gráfico de Barras con Colores Personalizados",
         xaxis_title="Categorías",
         yaxis_title="Valores",
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
@@ -1376,7 +1573,11 @@ def plot_comfort_energy_balance(
         xaxis_title='',
         yaxis_title='Mean reward term (across episodes)',
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
     )
     return fig
 
@@ -1691,7 +1892,11 @@ def plot_action_distribution(df_dict, variable, colors=None):
         xaxis_title='',
         yaxis_title=_variable_name_to_axis_label(variable),
         violinmode='overlay',
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
     )
     if plotted_names:
         layout_kwargs['xaxis'] = dict(
@@ -1727,8 +1932,10 @@ def plot_dfs_boxplot(df_dict, variable, colors=None, yaxis_title=None,
             go.Box(
                 y=df[variable],
                 name=name,
-                marker_color=color,
+                fillcolor=color,
+                marker=dict(color=color),
                 boxmean=False,
+                line=dict(color='black', width=1),
             )
         )
 
@@ -1738,7 +1945,7 @@ def plot_dfs_boxplot(df_dict, variable, colors=None, yaxis_title=None,
         yaxis_title=yaxis_title,
         xaxis_title=xaxis_title,
         showlegend=False,  # No mostrar la leyenda, los nombres están en el eje X
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(family=_PLOTLY_SERIF, size=PLOTLY_PAPER_FONT_SIZE, color=_PLOTLY_TEXT),
         width=1000,  # Ancho de la figura
         height=600,  # Alto de la figura
         **PLOTLY_WHITE_LAYOUT_KWARGS,
@@ -1836,14 +2043,22 @@ def plot_energy_savings(data, names_reference, names_comparison, variable, color
         yaxis=dict(tick0=0, dtick=2),
         barmode='group',
         showlegend=True,
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=20),
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
             itemwidth=60,
         ),
         height=600,
@@ -1916,7 +2131,13 @@ def plot_summary_data(data):
     num_rows = -(-len(categories) // num_cols)  # Redondear hacia arriba
 
     # Crear subgráficas
-    fig = sp.make_subplots(rows=num_rows, cols=num_cols, subplot_titles=categories)
+    fig = sp.make_subplots(
+        rows=num_rows,
+        cols=num_cols,
+        subplot_titles=categories,
+        vertical_spacing=PLOTLY_SUBPLOT_VERTICAL_SPACING,
+        horizontal_spacing=PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
+    )
 
     for i, category in enumerate(categories):
         row = i // num_cols + 1
@@ -1938,7 +2159,7 @@ def plot_summary_data(data):
     # Personalización del diseño
     fig.update_layout(
         title='Comparison of Metrics: With vs Without Weather',
-        height=400 * num_rows,
+        height=max(320 * num_rows, 360),
         showlegend=False,
         **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
@@ -2066,7 +2287,7 @@ def add_temperature_traces(
             x=x_vals,
             y=sp_upper,
             mode="lines",
-            line=dict(width=0),
+            line=dict(color=_COMFORT_BAND_EDGE_COLOR, width=1),
             showlegend=False,
             hoverinfo="skip",
         ),
@@ -2077,8 +2298,8 @@ def add_temperature_traces(
             x=x_vals,
             y=sp_lower,
             mode="lines",
-            line=dict(width=0),
-            fillcolor="rgba(255, 165, 0, 0.2)",
+            line=dict(color=_COMFORT_BAND_EDGE_COLOR, width=1),
+            fillcolor=_COMFORT_BAND_FILLCOLOR,
             fill="tonexty",
             name=band_label if show_legend else None,
             showlegend=show_legend,
@@ -2228,11 +2449,14 @@ def _export_plotly_figure(
     png_width: int,
     png_height: int,
     png_scale: int = 2,
+    paper_style: bool = False,
 ) -> None:
     """Write ``path_stem`` + ``.html`` or ``.png`` (requires kaleido for PNG)."""
     path_stem = Path(path_stem)
     path_stem.parent.mkdir(parents=True, exist_ok=True)
     fig.update_layout(width=png_width, height=png_height, **PLOTLY_WHITE_LAYOUT_KWARGS)
+    if paper_style:
+        apply_plotly_paper_style(fig)
     if export_format == "html":
         fig.write_html(str(path_stem.with_suffix(".html")))
         return
@@ -2263,6 +2487,7 @@ def plot_case_temperatures(
     png_width: int = 1200,
     png_height_single: int = 500,
     png_scale: int = 2,
+    paper_style: bool = False,
 ) -> None:
     """Grid + per-zone time views: export as PNG (default) or interactive HTML.
 
@@ -2270,6 +2495,7 @@ def plot_case_temperatures(
     ``zones`` is a sequence of ``(temp_var, setpoint_var, zone_name)`` per room.
     ``df`` must include ``datetime`` and all columns referenced by ``zones`` (and
     optionally ``outdoor_temp_var``).
+    ``paper_style``: al exportar, aplica :func:`apply_plotly_paper_style`.
     """
     if "datetime" not in df.columns:
         raise ValueError("El DataFrame debe contener la columna 'datetime'.")
@@ -2343,9 +2569,18 @@ def plot_case_temperatures(
         cols=ncols,
         subplot_titles=subplot_titles,
         specs=specs,
-        vertical_spacing=0.12,
-        horizontal_spacing=0.1,
+        vertical_spacing=PLOTLY_SUBPLOT_VERTICAL_SPACING,
+        horizontal_spacing=PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
     )
+    # make_subplots no expone subplot_titles_font; los títulos son layout.annotations.
+    if fig.layout.annotations:
+        fig.update_annotations(
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_AXIS_TITLE_SIZE,
+                color=_PLOTLY_TEXT,
+            )
+        )
 
     if temp_colors is None:
         colors_seq: List[Optional[str]] = [None] * n_zones
@@ -2391,7 +2626,7 @@ def plot_case_temperatures(
     fig.update_xaxes(**xa_period)
 
     grid_title = summary_title.strip() or f"case{case_id}"
-    grid_height = max(300 * nrows, 600)
+    grid_height = max(250 * nrows, 480)
     # width/height en layout: Kaleido usa las mismas dimensiones que write_image;
     # si solo se pasan a write_image, la anotación del eje Y puede solaparse con los ticks.
     fig.update_layout(
@@ -2400,28 +2635,41 @@ def plot_case_temperatures(
         height=grid_height,
         template="plotly_white",
         hovermode=False,
-        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_FONT_SIZE,
+            color=_PLOTLY_TEXT,
+        ),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
         ),
-        margin=dict(l=130, r=25, b=40),
+        margin=dict(l=108, r=20, b=30, t=52),
     )
     # Una sola etiqueta de eje Y para la rejilla (temperatura interior); evita repetir en cada zona.
     fig.add_annotation(
         text="Temperature (°C)",
         xref="paper",
         yref="paper",
-        x=-0.082,
+        x=-0.076,
         y=0.5,
         xanchor="center",
         yanchor="middle",
         textangle=-90,
         showarrow=False,
-        font=dict(family="Arial, sans-serif", size=24, color="black"),
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_AXIS_TITLE_SIZE + 2,
+            color=_PLOTLY_TEXT,
+        ),
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -2432,6 +2680,7 @@ def plot_case_temperatures(
         png_width=png_width,
         png_height=grid_height,
         png_scale=png_scale,
+        paper_style=paper_style,
     )
 
     for i, (temp_col, sp_col, room_title) in enumerate(zones):
@@ -2454,7 +2703,11 @@ def plot_case_temperatures(
             title=f"{grid_title} – {room_title}",
             yaxis_title="Temperature (°C)",
             xaxis=xa_period,
-            font=dict(family="Arial, sans-serif", size=20, color="black"),
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
             template="plotly_white",
             height=500,
             hovermode=False,
@@ -2474,6 +2727,7 @@ def plot_case_temperatures(
             png_width=png_width,
             png_height=png_height_single,
             png_scale=png_scale,
+            paper_style=paper_style,
         )
 
         if not obs_daily.empty:
@@ -2493,7 +2747,11 @@ def plot_case_temperatures(
                 yaxis_title="Temperature (°C)",
                 xaxis=xa_daily,
                 template="plotly_white",
-                font=dict(family="Arial, sans-serif", size=20, color="black"),
+                font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
                 height=500,
                 hovermode=False,
             )
@@ -2511,6 +2769,7 @@ def plot_case_temperatures(
                 png_width=png_width,
                 png_height=png_height_single,
                 png_scale=png_scale,
+                paper_style=paper_style,
             )
 
         if not obs_week.empty:
@@ -2533,7 +2792,11 @@ def plot_case_temperatures(
                 yaxis_title="Temperature (°C)",
                 xaxis=xa_week,
                 template="plotly_white",
-                font=dict(family="Arial, sans-serif", size=20, color="black"),
+                font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
                 height=500,
                 hovermode=False,
             )
@@ -2551,6 +2814,7 @@ def plot_case_temperatures(
                 png_width=png_width,
                 png_height=png_height_single,
                 png_scale=png_scale,
+                paper_style=paper_style,
             )
 
         if not obs_month.empty:
@@ -2575,7 +2839,11 @@ def plot_case_temperatures(
                 template="plotly_white",
                 height=500,
                 hovermode=False,
-                font=dict(family="Arial, sans-serif", size=20, color="black"),
+                font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_FONT_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
                 #xaxis=dict(rangeslider=dict(visible=True), type="date"),
             )
             if added_om:
@@ -2592,4 +2860,5 @@ def plot_case_temperatures(
                 png_width=png_width,
                 png_height=png_height_single,
                 png_scale=png_scale,
+                paper_style=paper_style,
             )
