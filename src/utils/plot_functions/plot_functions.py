@@ -8,7 +8,26 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import plotly.subplots as sp
+
+# Fondo blanco unificado (Plotly por defecto suele usar la plantilla "plotly", más oscura).
+pio.templates.default = "plotly_white"
+
+# Para merge en ``update_layout`` / exportación (también importable desde otros scripts).
+PLOTLY_WHITE_LAYOUT_KWARGS = dict(
+    template="plotly_white",
+    paper_bgcolor="#ffffff",
+    plot_bgcolor="#ffffff",
+)
+
+
+def _hex_to_rgba(hex_color: str, alpha: float = 0.15) -> str:
+    """``#RRGGBB`` → ``rgba(r,g,b,alpha)`` para rellenos alineados con el color de línea."""
+    h = str(hex_color).lstrip('#')
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f'rgba({r}, {g}, {b}, {alpha})'
+
 
 # =============================================================================
 # DATETIME & I/O PREPROCESSING
@@ -70,9 +89,12 @@ def save_figure(fig, path_stem, width=1200, height=700, scale=2):
     """
     Guarda la figura en PNG (alta calidad) y HTML.
     path_stem: Path o str sin extensión (ej. output_dir / 'nombre').
+    ``width``/``height`` se aplican también a ``layout`` para que el HTML y el PNG
+    (Kaleido) compartan la misma geometría y no diverjan márgenes o ejes.
     """
     path_stem = Path(path_stem)
     path_stem.parent.mkdir(parents=True, exist_ok=True)
+    fig.update_layout(width=width, height=height, **PLOTLY_WHITE_LAYOUT_KWARGS)
     try:
         fig.write_image(
             str(path_stem.with_suffix('.png')),
@@ -196,6 +218,7 @@ def plot_dfs_line(df_dict, variable_name, colors=None, line_styles=None):
         ),
         height=600,
         width=1000,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -259,7 +282,7 @@ def plot_training_reward_terms_progression(
                 mode='lines',
                 line=dict(width=0),
                 fill='tonexty',
-                fillcolor='rgba(52, 152, 219, 0.15)',
+                fillcolor=_hex_to_rgba(color_comfort, 0.15),
                 showlegend=False,
                 hoverinfo='skip',
             )
@@ -294,7 +317,7 @@ def plot_training_reward_terms_progression(
                 mode='lines',
                 line=dict(width=0),
                 fill='tonexty',
-                fillcolor='rgba(231, 76, 60, 0.15)',
+                fillcolor=_hex_to_rgba(color_energy, 0.15),
                 showlegend=False,
                 hoverinfo='skip',
             )
@@ -317,6 +340,7 @@ def plot_training_reward_terms_progression(
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
         height=500,
         width=1000,
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
     )
     return fig
 
@@ -375,13 +399,14 @@ def plot_episode_reward_terms_timestep(
     )
     fig.update_layout(
         title=title,
-        xaxis_title='Time',
+        xaxis_title='',
         yaxis_title='Reward term (per timestep)',
         template='plotly_white',
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
         xaxis=dict(**_DATETIME_X_AXIS_FORMAT),
         height=500,
         width=1000,
+        font = dict(family="Arial, sans-serif", size=20, color="black"),
     )
     return fig
 
@@ -502,18 +527,19 @@ def plot_control(
         ),
         yaxis=yaxis_primary,
         yaxis2=dict(title='Flow rate', overlaying='y', side='right', showgrid=False),
-        font=dict(family="Arial, sans-serif", size=16, color="black"),
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
         legend=dict(
             orientation="v",
             yanchor="middle",
             y=0.5,
             xanchor="left",
             x=1.05,
-            font=dict(size=14),
+            font=dict(size=20),
         ),
         width=1000,
         height=600,
         title=None,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     return fig
@@ -575,6 +601,7 @@ def plot_smoothed_signal(
             xanchor='center',
             x=0.5,
         ),
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     return fig
@@ -626,6 +653,8 @@ def plot_heat_work(
         title=title,
         xaxis_title='',
         yaxis_title='Temperature (°C)',
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     return fig
@@ -702,6 +731,7 @@ def plot_temperatures_v2(df, variables, names, upper_limit, lower_limit, colors=
         ),
         width=1000,
         height=600,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     return fig
@@ -814,9 +844,10 @@ def plot_temperatures(
             x=1.05,
             font=dict(size=20),
         ),
-        font=dict(family="Arial, sans-serif", size=16, color="black"),
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
         width=1000,
         height=600,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -913,6 +944,7 @@ def plot_temperature_one_zone(
 
     fig.update_xaxes(**_DATETIME_X_AXIS_FORMAT)
     layout = dict(
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
         title=None,
         xaxis_title='',
         yaxis=dict(
@@ -927,9 +959,9 @@ def plot_temperature_one_zone(
             y=1.02,
             xanchor='center',
             x=0.5,
-            font=dict(size=14),
+            font=dict(size=20),
         ),
-        font=dict(family='Arial, sans-serif', size=14, color='black'),
+        font=dict(family='Arial, sans-serif', size=20, color='black'),
         width=1000,
         height=500,
     )
@@ -1048,7 +1080,8 @@ def plot_temperatures_subplots(
         height=250 * nrows,
         width=1000,
         showlegend=False,
-        font=dict(family="Arial, sans-serif", size=12, color="black"),
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     fig.update_yaxes(title_text="Temperature (°C)", row="all", col=1)
     return fig
@@ -1130,6 +1163,7 @@ def plot_dfs_line_grouped_by_month(df_dict, variable, colors=None, line_styles=N
         ),
         height=600,
         width=1000,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -1205,6 +1239,7 @@ def plot_dfs_bar_grouped_by_month(df_dict, variable, colors=None):
         ),
         height=600,
         width=1000,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -1245,7 +1280,8 @@ def plot_bar(dict_data, bar_colors=None):
         title="Gráfico de Barras con Colores Personalizados",
         xaxis_title="Categorías",
         yaxis_title="Valores",
-        font=dict(family="Arial, sans-serif", size=20, color="black")
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     return fig
@@ -1340,6 +1376,7 @@ def plot_comfort_energy_balance(
         xaxis_title='',
         yaxis_title='Mean reward term (across episodes)',
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
+        font=dict(family="Arial, sans-serif", size=20, color="black"),
     )
     return fig
 
@@ -1649,8 +1686,9 @@ def plot_action_distribution(df_dict, variable, colors=None):
     # Eje X: orden explícito (Plotly ordena categorías alfabéticamente por defecto).
     # tickvals/ticktext solo con modelos que tienen violín (evita desajuste si falta columna).
     layout_kwargs = dict(
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
         title=f'{variable} distribution',
-        xaxis_title='Model',
+        xaxis_title='',
         yaxis_title=_variable_name_to_axis_label(variable),
         violinmode='overlay',
         font=dict(family="Arial, sans-serif", size=20, color="black"),
@@ -1703,6 +1741,7 @@ def plot_dfs_boxplot(df_dict, variable, colors=None, yaxis_title=None,
         font=dict(family="Arial, sans-serif", size=20, color="black"),
         width=1000,  # Ancho de la figura
         height=600,  # Alto de la figura
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -1809,6 +1848,7 @@ def plot_energy_savings(data, names_reference, names_comparison, variable, color
         ),
         height=600,
         width=1000,
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     # Devolver la figura
@@ -1859,6 +1899,7 @@ def plot_mean_energy_savings(
         title=f'Comparative mean energy consumption savings vs {ref_label}',
         xaxis_title='',
         yaxis_title='Mean energy consumption savings (%)',
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
     return fig
 
@@ -1899,7 +1940,7 @@ def plot_summary_data(data):
         title='Comparison of Metrics: With vs Without Weather',
         height=400 * num_rows,
         showlegend=False,
-        template='plotly_white',
+        **PLOTLY_WHITE_LAYOUT_KWARGS,
     )
 
     return fig
@@ -2139,6 +2180,46 @@ def _zone_output_slug(zone_name: str) -> str:
     return "_".join(zone_name.lower().replace("-", " ").split())
 
 
+def _xaxis_layout_for_datetime_span(dt: pd.Series) -> dict:
+    """Plotly ``xaxis`` / ``update_xaxes`` kwargs from the span of a datetime column.
+
+    Chooses ``tickformat`` (and optional ``dtick`` / ``tickangle``) so short windows
+    do not repeat coarse labels (e.g. month abbreviation only on a single-day plot).
+    """
+    out: dict = {"type": "date"}
+    if dt is None or getattr(dt, "empty", True):
+        out["tickformat"] = "%Y-%m-%d"
+        return out
+    s = pd.to_datetime(dt, errors="coerce").dropna()
+    if s.empty:
+        out["tickformat"] = "%Y-%m-%d"
+        return out
+
+    t0 = pd.Timestamp(s.min())
+    t1 = pd.Timestamp(s.max())
+    span = t1 - t0
+    if span.value <= 0:
+        span = pd.Timedelta(hours=1)
+
+    days = span.total_seconds() / 86400.0
+    cross_year = t0.year != t1.year
+
+    if days <= 1.5:
+        out["tickformat"] = "%H:%M"
+        out["dtick"] = 2 * 3600 * 1000
+    elif days <= 14:
+        out["tickformat"] = "%a %d %b %Y" if cross_year else "%a %d %b"
+        out["tickangle"] = -35
+    elif days <= 120:
+        out["tickformat"] = "%d %b %Y" if cross_year else "%d %b"
+        if cross_year:
+            out["tickangle"] = -35
+    else:
+        out["tickformat"] = "%b %Y"
+
+    return out
+
+
 def _export_plotly_figure(
     fig: go.Figure,
     path_stem: Path,
@@ -2151,6 +2232,7 @@ def _export_plotly_figure(
     """Write ``path_stem`` + ``.html`` or ``.png`` (requires kaleido for PNG)."""
     path_stem = Path(path_stem)
     path_stem.parent.mkdir(parents=True, exist_ok=True)
+    fig.update_layout(width=png_width, height=png_height, **PLOTLY_WHITE_LAYOUT_KWARGS)
     if export_format == "html":
         fig.write_html(str(path_stem.with_suffix(".html")))
         return
@@ -2223,6 +2305,23 @@ def plot_case_temperatures(
     month_mask = (obs["datetime"] >= month_start) & (obs["datetime"] <= month_end)
     obs_month = obs.loc[month_mask]
 
+    xa_period = _xaxis_layout_for_datetime_span(obs["datetime"])
+    xa_daily = (
+        _xaxis_layout_for_datetime_span(obs_daily["datetime"])
+        if not obs_daily.empty
+        else xa_period
+    )
+    xa_week = (
+        _xaxis_layout_for_datetime_span(obs_week["datetime"])
+        if not obs_week.empty
+        else xa_period
+    )
+    xa_month = (
+        _xaxis_layout_for_datetime_span(obs_month["datetime"])
+        if not obs_month.empty
+        else xa_period
+    )
+
     n_zones = len(zones)
     if n_zones == 0:
         return
@@ -2273,7 +2372,7 @@ def plot_case_temperatures(
         )
         y_lo, y_hi = _indoor_temperature_y_range(obs, temp_col, sp_col, threshold)
         fig.update_yaxes(
-            title_text="Temperature (°C)",
+            title_text="",
             row=row,
             col=col,
             secondary_y=False,
@@ -2289,14 +2388,15 @@ def plot_case_temperatures(
                 tickfont=dict(color="gray"),
             )
 
-    # Eje X: solo mes (sin año); mismo criterio en figuras sueltas más abajo.
-    _xaxis_month_only = dict(tickformat="%b")
-    fig.update_xaxes(**_xaxis_month_only)
+    fig.update_xaxes(**xa_period)
 
     grid_title = summary_title.strip() or f"case{case_id}"
     grid_height = max(300 * nrows, 600)
+    # width/height en layout: Kaleido usa las mismas dimensiones que write_image;
+    # si solo se pasan a write_image, la anotación del eje Y puede solaparse con los ticks.
     fig.update_layout(
         title=None,
+        width=png_width,
         height=grid_height,
         template="plotly_white",
         hovermode=False,
@@ -2308,6 +2408,20 @@ def plot_case_temperatures(
             xanchor="center",
             x=0.5,
         ),
+        margin=dict(l=130, r=25, b=40),
+    )
+    # Una sola etiqueta de eje Y para la rejilla (temperatura interior); evita repetir en cada zona.
+    fig.add_annotation(
+        text="Temperature (°C)",
+        xref="paper",
+        yref="paper",
+        x=-0.082,
+        y=0.5,
+        xanchor="center",
+        yanchor="middle",
+        textangle=-90,
+        showarrow=False,
+        font=dict(family="Arial, sans-serif", size=24, color="black"),
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -2339,7 +2453,7 @@ def plot_case_temperatures(
         layout_updates = dict(
             title=f"{grid_title} – {room_title}",
             yaxis_title="Temperature (°C)",
-            xaxis=_xaxis_month_only,
+            xaxis=xa_period,
             font=dict(family="Arial, sans-serif", size=20, color="black"),
             template="plotly_white",
             height=500,
@@ -2377,7 +2491,7 @@ def plot_case_temperatures(
             ld = dict(
                 title=f"{grid_title} – {room_title} (daily: {daily_date.date()})",
                 yaxis_title="Temperature (°C)",
-                xaxis=_xaxis_month_only,
+                xaxis=xa_daily,
                 template="plotly_white",
                 font=dict(family="Arial, sans-serif", size=20, color="black"),
                 height=500,
@@ -2417,7 +2531,7 @@ def plot_case_temperatures(
                     f"{week_start.date()} to {week_end.date()})"
                 ),
                 yaxis_title="Temperature (°C)",
-                xaxis=_xaxis_month_only,
+                xaxis=xa_week,
                 template="plotly_white",
                 font=dict(family="Arial, sans-serif", size=20, color="black"),
                 height=500,
@@ -2457,7 +2571,7 @@ def plot_case_temperatures(
                     f"{month_start.date()} to {month_end.date()})"
                 ),
                 yaxis_title="Temperature (°C)",
-                xaxis=_xaxis_month_only,
+                xaxis=xa_month,
                 template="plotly_white",
                 height=500,
                 hovermode=False,

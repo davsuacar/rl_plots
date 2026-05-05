@@ -32,6 +32,8 @@ from plot_functions import (
     save_figure,
 )
 
+pio.templates.default = "plotly_white"
+
 # =============================================================================
 # CONFIG — DATA PATHS & EXPERIMENTS
 # =============================================================================

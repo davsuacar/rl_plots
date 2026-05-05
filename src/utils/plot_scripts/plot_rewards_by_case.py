@@ -1,5 +1,8 @@
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
+
+pio.templates.default = "plotly_white"
 
 # Read the CSV files
 case1_df = pd.read_csv(

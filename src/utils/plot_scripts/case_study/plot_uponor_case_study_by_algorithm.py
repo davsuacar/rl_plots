@@ -82,6 +82,11 @@ SMOOTH_WINDOW = 1
 OUTPUT_BASE = Path('/home/jovyan/work/data/paper/plots/case_study/training_and_evaluation')
 OUTPUT_PROGRESS = OUTPUT_BASE / 'progress'
 OUTPUT_ZONE_TEMPERATURES = OUTPUT_BASE / 'zone_temperatures'
+
+# plot_case_temperatures alinea layout con el PNG (Kaleido): mismo ancho/alto evita que
+# etiquetas de ejes respecto al HTML redimensionado.
+ZONE_TEMP_EXPORT_WIDTH_PX = 1200
+ZONE_TEMP_EXPORT_SINGLE_HEIGHT_PX = 500
 OUTPUT_TEMP_VS_FLOW = OUTPUT_BASE / 'temp_vs_flow'
 OUTPUT_HEAT_PUMP_AND_CONTROL = OUTPUT_BASE / 'heat_pump_and_control'
 OUTPUT_HEAT_WORK = OUTPUT_BASE / 'heat_work'
@@ -123,13 +128,13 @@ pio.defaults.default_scale = 2
 # CONFIG — VARIABLES (zonas, columnas, umbrales, colores)
 # =============================================================================
 zone_names = [
-    'Living-Kitchen (F0)',    
-    'Bathroom-Lobby (F0)',
-    'Bedroom 1 (F1)',
-    'Bedroom 2 (F1)',
-    'Bedroom 3 (F1)',
-    'Bathroom-Corridor (F1)',
-    'Bathroom-Dressing (F1)',
+    'Living-Kitchen',    
+    'Bathroom-Lobby',
+    'Bedroom 1',
+    'Bedroom 2',
+    'Bedroom 3',
+    'Bathroom-Corridor',
+    'Bathroom-Dressing',
 ]
 temperature_variables = [
     "air_temperature_f0_living-kitchen",
@@ -334,8 +339,8 @@ for key, df in unified.items():
         summary_title=key,
         threshold=TEMPERATURE_THRESHOLD,
         outdoor_temp_var=None,
-        png_width=1200,
-        png_height_single=500,
+        png_width=ZONE_TEMP_EXPORT_WIDTH_PX,
+        png_height_single=ZONE_TEMP_EXPORT_SINGLE_HEIGHT_PX,
         png_scale=2,
         temp_colors=['#1ABC9C', '#1ABC9C', '#1ABC9C', '#1ABC9C', '#1ABC9C', '#1ABC9C', '#1ABC9C']
     )
@@ -435,6 +440,15 @@ for key, df in unified.items():
         outlet_name='Heat source outlet temperature',
         title=None,
     )
+    fig.update_layout(
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='center',
+            x=0.5,
+        ),
+    )
     save_figure(
         fig,
         model_dir / 'heat_work_requested_vs_outlet_temperature',
@@ -450,7 +464,7 @@ for key, df in unified.items():
 fig = plot_bar(mean_temp_violation_dict, bar_colors=colors[:df_num])
 fig.update_layout(
     title=None,
-    xaxis_title='Model',
+    xaxis_title='',
     yaxis_title='Mean episodic temperature violation (ºC)',
 )
 save_figure(
@@ -460,7 +474,7 @@ save_figure(
 fig = plot_bar(mean_energy_consumption_dict, bar_colors=colors[:df_num])
 fig.update_layout(
     title=None,
-    xaxis_title='Model',
+    xaxis_title='',
     yaxis_title='Mean episodic power consumption (W)',
 )
 save_figure(
@@ -472,7 +486,7 @@ fig = plot_dfs_bar_grouped_by_month(
     energy_variable,
     colors=colors[:df_num],
 )
-fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Mean episodic power demand (W)')
+fig.update_layout(title=None, xaxis_title='', yaxis_title='Mean episodic power demand (W)')
 save_figure(
     fig, OUTPUT_MEANS_MONTH / 'month_power_demand', width=1200, height=600, scale=2
 )
@@ -482,7 +496,7 @@ fig = plot_dfs_bar_grouped_by_month(
     'total_temperature_violation',
     colors=colors[:df_num],
 )
-fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Mean episodic temperature violation (°C)')
+fig.update_layout(title=None, xaxis_title='', yaxis_title='Mean episodic temperature violation (°C)')
 save_figure(
     fig,
     OUTPUT_MEANS_MONTH / 'month_temperature_violation',
@@ -542,7 +556,7 @@ if crf_trans_mean_dict:
     fig.update_layout(
         title=None,
         yaxis_title='Transitions per day',
-        xaxis_title='Model',
+        xaxis_title='',
     )
     save_figure(
         fig,
@@ -560,7 +574,7 @@ if crf_ons_mean_dict:
     fig.update_layout(
         title=None,
         yaxis_title='Ons per day',
-        xaxis_title='Model',
+        xaxis_title='',
     )
     save_figure(
         fig,
@@ -632,7 +646,7 @@ else:
         'comfort_violation_time(%)',
         colors=colors[:df_num],
         yaxis_title='Episodic comfort violation time (%)',
-        xaxis_title='Model'
+        xaxis_title=''
     )
     save_figure(
         fig,
@@ -650,7 +664,7 @@ else:
     fig.update_layout(
         title=None,
         yaxis_title='Episodic temperature violation (ºC)',
-        xaxis_title='Model'
+        xaxis_title=''
     )
     save_figure(
         fig,
@@ -665,7 +679,7 @@ else:
         'mean_power_demand',
         colors=colors[:df_num],
         yaxis_title='Episodic power demand (W)',
-        xaxis_title='Model'
+        xaxis_title=''
     )
     fig.update_layout(title=None, yaxis_title='Power demand (W)')
     save_figure(
@@ -728,7 +742,7 @@ else:
         )
         fig.update_layout(
             title=None,
-            xaxis_tickangle=-25,
+            #xaxis_tickangle=-25,
         )
         save_figure(
             fig,
