@@ -10,6 +10,11 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from plotly.subplots import make_subplots
 
+from utils.plot_functions.plot_functions import (
+    PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
+    PLOTLY_SUBPLOT_VERTICAL_SPACING,
+)
+
 ROOT = Path(__file__).resolve().parent
 
 # Baseline evaluation (case 2 TQC) — not under DATA_DIR / EXPERIMENTS
@@ -836,8 +841,8 @@ def plot_degradation_temperatures(
             "Bedroom 2",
             "Bedroom 3",
         ],
-        vertical_spacing=0.12,
-        horizontal_spacing=0.1,
+        vertical_spacing=PLOTLY_SUBPLOT_VERTICAL_SPACING,
+        horizontal_spacing=PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
     )
 
     for i, (temp_col, sp_col) in enumerate(zip(TEMP_COLS, SETPOINT_COLS)):
@@ -852,18 +857,18 @@ def plot_degradation_temperatures(
     # margen/anotación se ven distintos que en HTML a pantalla ancha).
     fig.update_layout(
         width=1200,
-        height=900,
+        height=760,
         template="plotly_white",
         hovermode=False,
         legend=TEMP_LEGEND_LAYOUT,
-        margin=dict(l=112, t=80, r=25, b=40),
+        margin=dict(l=102, t=72, r=22, b=32),
     )
     # Single shared Y-axis label for all zones (avoid repeating on each subplot)
     fig.add_annotation(
         text="Temperature (°C)",
         xref="paper",
         yref="paper",
-        x=-0.072,
+        x=-0.068,
         y=0.5,
         xanchor="center",
         yanchor="middle",

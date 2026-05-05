@@ -4,6 +4,11 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.subplots as sp
 
+from utils.plot_functions.plot_functions import (
+    PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
+    PLOTLY_SUBPLOT_VERTICAL_SPACING,
+)
+
 pio.templates.default = "plotly_white"
 
 # -------------------------- Datetime preprocessing -------------------------- #
@@ -616,12 +621,16 @@ def plot_dfs_boxplot(dfs, variable, names, colors=None):
 
     # Añadir cajas para cada DataFrame
     for df, name, color in zip(dfs, names, colors):
-        fig.add_trace(go.Box(
-            y=df[variable],
-            name=name,
-            marker_color=color,
-            boxmean=False  # No mostrar la media ni la desviación estándar
-        ))
+        fig.add_trace(
+            go.Box(
+                y=df[variable],
+                name=name,
+                fillcolor=color,
+                marker=dict(color=color),
+                boxmean=False,
+                line=dict(color='black', width=1),
+            )
+        )
 
     # Configurar el layout
     fig.update_layout(
@@ -760,7 +769,10 @@ def plot_summary_data(data):
     fig = sp.make_subplots(
         rows=num_rows,
         cols=num_cols,
-        subplot_titles=categories)
+        subplot_titles=categories,
+        vertical_spacing=PLOTLY_SUBPLOT_VERTICAL_SPACING,
+        horizontal_spacing=PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
+    )
 
     for i, category in enumerate(categories):
         row = i // num_cols + 1
@@ -781,7 +793,7 @@ def plot_summary_data(data):
     # Personalización del diseño
     fig.update_layout(
         title='Comparison of Metrics: With vs Without Weather',
-        height=400 * num_rows,
+        height=max(320 * num_rows, 360),
         showlegend=False,
         template='plotly_white'
     )
