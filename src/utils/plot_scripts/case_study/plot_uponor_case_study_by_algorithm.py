@@ -742,7 +742,7 @@ else:
         )
         fig.update_layout(
             title=None,
-            xaxis_tickangle=-25,
+            #xaxis_tickangle=-25,
         )
         save_figure(
             fig,
