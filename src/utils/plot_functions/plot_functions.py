@@ -2,7 +2,7 @@ import math
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import List, Literal, Optional, Sequence, Tuple
+from typing import List, Literal, Optional, Sequence, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -167,7 +167,7 @@ def safe_read_csv(path):
         return pd.DataFrame()
 
 
-def add_datetime_column(df):
+def add_datetime_column(df: pd.DataFrame) -> pd.DataFrame:
     df.rename(columns={'day_of_month': 'day'}, inplace=True)
     df['year'] = 2006
     df.loc[df['month'] < 5, 'year'] = 2007
@@ -182,10 +182,12 @@ def add_datetime_column_v2(df):
     return df
 
 
-def filer_interval(df, start, end):
+def filer_interval(df: pd.DataFrame, start, end) -> pd.DataFrame:
     start = pd.to_datetime(start)
     end = pd.to_datetime(end)
-    return df[(df['datetime'] >= start) & (df['datetime'] <= end)]
+    mask = (df['datetime'] >= start) & (df['datetime'] <= end)
+    # Los stubs de pandas suelen devolver DataFrame | Series; aquí es siempre DataFrame.
+    return cast(pd.DataFrame, df.loc[mask])
 
 
 def resample(df):

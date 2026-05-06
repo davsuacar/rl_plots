@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
-from typing import AbstractSet, Dict, List, Optional, Tuple
+from typing import AbstractSet, Dict, List, Optional, Tuple, cast
 
 import pandas as pd
 import plotly.io as pio
@@ -457,7 +457,7 @@ def run_study_plots(
         for key, monitor_dir in _monitor_dirs.items()
     }
 
-    unified = {
+    unified: Dict[str, pd.DataFrame] = {
         key: pd.concat(
             [evaluation_obs[key], evaluation_infos[key]],
             axis=1,
@@ -480,8 +480,9 @@ def run_study_plots(
     for key in unified:
         unified[key] = add_datetime_column(unified[key])
         if filter_interval is not None:
-            unified[key] = filer_interval(
-                unified[key], filter_interval[0], filter_interval[1]
+            unified[key] = cast(
+                pd.DataFrame,
+                filer_interval(unified[key], filter_interval[0], filter_interval[1]),
             )
 
     df_num = len(unified)

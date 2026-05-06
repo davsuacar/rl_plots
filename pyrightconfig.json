@@ -1,0 +1,12 @@
+{
+  "include": ["src", "notebooks", "sample_plots"],
+  "exclude": ["**/node_modules", "**/__pycache__", "data"],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": false,
+  "reportUnusedImport": false,
+  "reportMissingModuleSource": false,
+  "reportMissingTypeStubs": false,
+  "reportOptionalMemberAccess": false,
+  "reportAttributeAccessIssue": false,
+  "reportUnusedVariable": true
+}

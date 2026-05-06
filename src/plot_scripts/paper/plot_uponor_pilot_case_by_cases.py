@@ -4,6 +4,7 @@ import math
 import os
 import re
 from pathlib import Path
+from typing import Any, cast
 
 import pandas as pd
 import plotly.io as pio
@@ -62,10 +63,11 @@ combination_size = len(names_reference) * len(names_comparison)
 
 FILTER_INTERVAL = ('2006-11-01 00:00:00', '2007-03-31 23:55:00')
 # Día de referencia para la vista diaria en plot_case_temperatures (mitad del intervalo simulado).
-ZONE_TEMP_PLOT_DAILY_DATE = (
+_zone_midpoint = (
     pd.Timestamp(FILTER_INTERVAL[0])
     + (pd.Timestamp(FILTER_INTERVAL[1]) - pd.Timestamp(FILTER_INTERVAL[0])) / 2
-).normalize()
+)
+ZONE_TEMP_PLOT_DAILY_DATE = cast(pd.Timestamp, _zone_midpoint).normalize()
 TEMPERATURE_THRESHOLD = 1.0
 SMOOTH_WINDOW = 1
 
@@ -307,7 +309,7 @@ _zones = list(
 )
 for key, df in unified.items():
     model_dir = OUTPUT_ZONE_TEMPERATURES / _slugify(key)
-    _kwargs = dict(
+    _kwargs: dict[str, Any] = dict(
         df=df,
         zones=_zones,
         output_dir=model_dir,
