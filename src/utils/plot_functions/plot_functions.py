@@ -10,6 +10,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.subplots as sp
+try:
+    from PIL import Image, ImageChops
+except Exception:
+    Image = None
+    ImageChops = None
 
 # Fondo blanco unificado (Plotly por defecto suele usar la plantilla "plotly", más oscura).
 pio.templates.default = "plotly_white"
@@ -30,14 +35,13 @@ _PLOTLY_TEXT = '#0a0a0a'
 _PLOTLY_GRID = '#cccccc'
 PLOTLY_TRACE_LINE_WIDTH = 1.8
 
-# Banda setpoint ± umbral (temperaturas): mismo matiz que el relleno; borde ~14 % más oscuro.
-_COMFORT_BAND_FILLCOLOR = 'rgba(255, 165, 0, 0.2)'
-_COMFORT_BAND_ORANGE_RGB = (255, 165, 0)
-_COMFORT_BAND_EDGE_RGB = tuple(
-    int(round(c * 0.86)) for c in _COMFORT_BAND_ORANGE_RGB
+# Banda setpoint ± umbral (temperaturas): verde muy suave; líneas = mismo RGB que el tono del relleno.
+_COMFORT_BAND_RGB = (120, 185, 120)
+_COMFORT_BAND_FILLCOLOR = (
+    f'rgba({_COMFORT_BAND_RGB[0]}, {_COMFORT_BAND_RGB[1]}, {_COMFORT_BAND_RGB[2]}, 0.2)'
 )
-_COMFORT_BAND_EDGE_COLOR = (
-    f'rgb({_COMFORT_BAND_EDGE_RGB[0]}, {_COMFORT_BAND_EDGE_RGB[1]}, {_COMFORT_BAND_EDGE_RGB[2]})'
+_COMFORT_BAND_LINE_COLOR = (
+    f'rgb({_COMFORT_BAND_RGB[0]}, {_COMFORT_BAND_RGB[1]}, {_COMFORT_BAND_RGB[2]})'
 )
 
 # Tamaños coherentes en todas las facetas (leyenda, ejes, títulos)
@@ -49,6 +53,8 @@ PLOTLY_PAPER_LEGEND_SIZE = 14
 
 # make_subplots: menos hueco entre paneles (Plotly no tiene tight_layout; dominios normalizados 0–1).
 PLOTLY_SUBPLOT_VERTICAL_SPACING = 0.06
+# Rejilla ``plot_case_temperatures`` (una columna): paneles más pegados (cf. sample_plots/evolution.py).
+PLOTLY_ZONE_TEMP_GRID_VERTICAL_SPACING = 0.02
 PLOTLY_SUBPLOT_HORIZONTAL_SPACING = 0.055
 
 PLOTLY_PAPER_STYLE_AXIS = dict(
@@ -201,26 +207,72 @@ def resample(df):
 # =============================================================================
 
 
-def save_figure(fig, path_stem, width=1200, height=700, scale=2, paper_style=True):
+def _autocrop_png_whitespace(
+    png_path: Path,
+    *,
+    background_rgb: tuple[int, int, int] = (255, 255, 255),
+    pad_px: int = 0,
+) -> bool:
+    """Recorta bordes blancos de un PNG exportado (si Pillow está disponible)."""
+    if Image is None or ImageChops is None:
+        return False
+    path = Path(png_path)
+    if not path.exists():
+        return False
+    try:
+        with Image.open(path) as im:
+            im_rgb = im.convert('RGB')
+            bg = Image.new('RGB', im_rgb.size, background_rgb)
+            diff = ImageChops.difference(im_rgb, bg)
+            bbox = diff.getbbox()
+            if bbox is None:
+                return False
+            l, t, r, b = bbox
+            if pad_px > 0:
+                l = max(0, l - pad_px)
+                t = max(0, t - pad_px)
+                r = min(im.width, r + pad_px)
+                b = min(im.height, b + pad_px)
+            if (l, t, r, b) == (0, 0, im.width, im.height):
+                return False
+            im.crop((l, t, r, b)).save(path)
+        return True
+    except Exception:
+        return False
+
+
+def save_figure(
+    fig,
+    path_stem,
+    width=1200,
+    height=700,
+    scale=2,
+    paper_style=True,
+    autocrop_png=True,
+):
     """
     Guarda la figura en PNG (alta calidad) y HTML.
     path_stem: Path o str sin extensión (ej. output_dir / 'nombre').
     ``width``/``height`` se aplican también a ``layout`` para que el HTML y el PNG
     (Kaleido) compartan la misma geometría y no diverjan márgenes o ejes.
     ``paper_style``: serif + rejilla gris claro (equiv. sample_plots matplotlib).
+    ``autocrop_png``: recorta bordes blancos del PNG (equiv. aproximado a tight bbox).
     """
     path_stem = Path(path_stem)
     path_stem.parent.mkdir(parents=True, exist_ok=True)
     fig.update_layout(width=width, height=height, **PLOTLY_WHITE_LAYOUT_KWARGS)
     if paper_style:
         apply_plotly_paper_style(fig)
+    png_path = path_stem.with_suffix('.png')
     try:
         fig.write_image(
-            str(path_stem.with_suffix('.png')),
+            str(png_path),
             width=width,
             height=height,
             scale=scale,
         )
+        if autocrop_png:
+            _autocrop_png_whitespace(png_path)
     except Exception as e:
         print(f"⚠️ No se pudo exportar PNG ({path_stem.name}): {e}")
     fig.write_html(str(path_stem.with_suffix('.html')))
@@ -279,9 +331,27 @@ _DATETIME_X_AXIS_FORMAT = dict(dtick='M1', tickformat='%b', ticklabelmode='perio
 
 # Patrones de línea para distinguir series en B/N (Plotly: solid, dash, dot, …)
 _LINE_DASH_CYCLE = ('solid', 'dash', 'dot', 'dashdot', 'longdash', 'longdashdot')
+_MARKER_SYMBOL_CYCLE = (
+    'circle',
+    'square',
+    'diamond',
+    'triangle-up',
+    'triangle-down',
+    'x',
+    'cross',
+    'pentagon',
+    'star',
+)
 
 
-def plot_dfs_line(df_dict, variable_name, colors=None, line_styles=None):
+def plot_dfs_line(
+    df_dict,
+    variable_name,
+    colors=None,
+    line_styles=None,
+    marker_symbols=None,
+    marker_every=None,
+):
     """
     Genera un gráfico de líneas de progreso.
 
@@ -290,7 +360,9 @@ def plot_dfs_line(df_dict, variable_name, colors=None, line_styles=None):
     - names: lista de nombres para cada línea
     - variable_name: nombre de la columna en los DataFrames que se desea graficar en el eje y
     - colors: lista opcional de colores para cada línea; si no se proporciona, se asignan colores predeterminados
-    - line_styles: lista opcional de dash de Plotly por traza; si es None, se cicla _LINE_DASH_CYCLE
+    - line_styles: lista opcional de dash de Plotly por traza; si es None, se cicla _LINE_DASH_CYCLE.
+    - marker_symbols: lista opcional de símbolos de marcador por traza.
+    - marker_every: separación aproximada entre marcadores (en puntos). Si None, se auto-ajusta.
     """
     n = len(df_dict)
 
@@ -302,22 +374,56 @@ def plot_dfs_line(df_dict, variable_name, colors=None, line_styles=None):
     elif len(line_styles) < n:
         ls = list(line_styles)
         line_styles = (ls * ((n + len(ls) - 1) // len(ls)))[:n]
+    if marker_symbols is None:
+        marker_symbols = [_MARKER_SYMBOL_CYCLE[i % len(_MARKER_SYMBOL_CYCLE)] for i in range(n)]
+    elif len(marker_symbols) < n:
+        ms = list(marker_symbols)
+        marker_symbols = (ms * ((n + len(ms) - 1) // len(ms)))[:n]
 
     # Crear figura
     fig = go.Figure()
 
     # Añadir líneas para cada DataFrame
-    for (name, df), color, dash in zip(df_dict.items(), colors, line_styles):
+    for (name, df), color, dash, symbol in zip(
+        df_dict.items(), colors, line_styles, marker_symbols
+    ):
+        x_vals = pd.to_numeric(df['episode_num'], errors='coerce')
+        y_vals = pd.to_numeric(df[variable_name], errors='coerce')
+        valid = x_vals.notna() & y_vals.notna()
+        x_vals = x_vals.loc[valid]
+        y_vals = y_vals.loc[valid]
+        if x_vals.empty:
+            continue
+
         line_kw = dict(color=color, width=2)
         if dash is not None and str(dash).lower() != 'solid':
             line_kw['dash'] = dash
+        if marker_every is None:
+            step = max(1, int(math.ceil(len(x_vals) / 40)))
+        else:
+            step = max(1, int(marker_every))
+        maxdisplayed = max(1, int(math.ceil(len(x_vals) / step)))
         fig.add_trace(
             go.Scatter(
-                x=df['episode_num'],
-                y=df[variable_name],
-                mode='lines',
+                x=x_vals,
+                y=y_vals,
+                mode='lines+markers',
                 line=line_kw,
+                marker=dict(
+                    symbol=symbol,
+                    size=6,
+                    maxdisplayed=maxdisplayed,
+                    color=color,
+                    line=dict(width=0),
+                ),
                 name=name,
+                legendgroup=name,
+                hovertemplate=(
+                    f'{name}'
+                    '<br>Episode: %{x}'
+                    '<br>Value: %{y:.4f}'
+                    '<extra></extra>'
+                ),
             )
         )
 
@@ -1800,17 +1906,46 @@ def plot_bar_groups_v2(dict_data):
 
 
 def _variable_name_to_axis_label(name: str) -> str:
-    """Etiqueta de eje: '_' → espacio, solo la 1.ª letra en mayúscula; ``water_temperature`` añade ``(ºC)``."""
+    """Etiqueta de eje: '_' → espacio, solo la 1.ª letra en mayúscula; ``flow_rate*`` → Flow rate (m3/h); ``water_temperature`` añade ``(ºC)``."""
     raw = str(name)
-    s = raw.replace('_', ' ').strip().lower()
-    out = (s[0].upper() + s[1:]) if s else raw
+    if raw.startswith('flow_rate'):
+        return 'Flow rate (m³/h)'
     if raw == 'water_temperature':
-        out = f'{out} (ºC)'
-    return out
+        return 'Temperature (ºC)'
+
+
+def _violin_fill_rgba(line_color: str, alpha: float = 0.75) -> str:
+    """Relleno tipo ``sample_plots/violins.py`` (alpha ~0.75 sobre tab)."""
+    h = str(line_color).lstrip('#')
+    if len(h) != 6:
+        return _hex_to_rgba('#1f77b4', alpha)
+    return _hex_to_rgba(f'#{h}', alpha)
+
+
+def _violin_y_range_from_arrays(arrays: Sequence[np.ndarray]) -> Tuple[float, float]:
+    """Rango del eje Y acotado a los datos + margen (evita escalas desacopladas del KDE)."""
+    parts = [
+        np.asarray(a, dtype=float)
+        for a in arrays
+        if a is not None and getattr(a, 'size', 0) > 0
+    ]
+    if not parts:
+        return 0.0, 1.0
+    stack = np.concatenate(parts)
+    stack = stack[np.isfinite(stack)]
+    if stack.size == 0:
+        return 0.0, 1.0
+    lo, hi = float(np.min(stack)), float(np.max(stack))
+    span = hi - lo
+    if span <= 0:
+        delta = max(abs(lo) * 0.05, 1e-9)
+        return lo - delta, hi + delta
+    pad = span * 0.06
+    return lo - pad, hi + pad
 
 
 def plot_action_distribution(df_dict, variable, colors=None):
-    """Distribución (violín) de una variable por experimento. df_dict: nombre -> DataFrame."""
+    """Distribución (violín) por experimento. Estética alineada con ``sample_plots/violins.py``."""
     names = list(df_dict.keys())
     dfs = list(df_dict.values())
 
@@ -1818,10 +1953,8 @@ def plot_action_distribution(df_dict, variable, colors=None):
         colors = px.colors.qualitative.Plotly[: len(names)]
 
     fig = go.Figure()
-    mean_x = []
-    mean_y = []
-    mean_colors = []
-    plotted_names = []
+    plotted_names: List[str] = []
+    value_arrays: List[np.ndarray] = []
 
     for i, df in enumerate(dfs):
         if variable not in df.columns:
@@ -1838,24 +1971,26 @@ def plot_action_distribution(df_dict, variable, colors=None):
 
         model_name = names[i]
         plotted_names.append(model_name)
-        mean_x.append(model_name)
-        mean_y.append(mean_v)
-        mean_colors.append(colors[i])
+        value_arrays.append(values)
+
+        fill_rgba = _violin_fill_rgba(colors[i], 0.75)
 
         fig.add_trace(
             go.Violin(
                 y=values,
                 x=[model_name] * len(values),
                 name=model_name,
-                box_visible=True,  # mediana + cuartiles
-                meanline_visible=False,  # la media se marca con un punto (Scatter)
-                points='outliers',  # simple y claro; evita ruido de todos los puntos
+                scalegroup='action_distribution',
+                # Equiv. matplotlib: violinplot(showmeans=True, showextrema=False): sin caja, media negra.
+                box_visible=False,
+                points=False,
                 quartilemethod='inclusive',
                 scalemode='width',
-                bandwidth=0.15,
-                line_color=colors[i],
-                fillcolor=colors[i],
-                opacity=0.45,
+                side='both',
+                meanline_visible=True,
+                meanline=dict(color=_PLOTLY_TEXT, width=2),
+                line=dict(color=_PLOTLY_TEXT, width=1),
+                fillcolor=fill_rgba,
                 hovertemplate=(
                     f'Model: {model_name}'
                     f'<br>Mean: {mean_v:.4f}'
@@ -1867,38 +2002,18 @@ def plot_action_distribution(df_dict, variable, colors=None):
             )
         )
 
-    # Media: misma categoría X que el violín. Con violinmode='group', Plotly agrupa violín + scatter
-    # en paralelo y el violín queda desplazado respecto a la etiqueta; 'overlay' centra ambos.
-    if mean_x:
-        fig.add_trace(
-            go.Scatter(
-                x=mean_x,
-                y=mean_y,
-                mode='markers',
-                name='Mean',
-                marker=dict(
-                    size=10,
-                    color=mean_colors,
-                    symbol='circle',
-                    line=dict(width=1.5, color='white'),
-                ),
-                hovertemplate='Model: %{x}<br>Mean: %{y:.4f}<extra></extra>',
-            )
-        )
-
-    # Eje X: orden explícito (Plotly ordena categorías alfabéticamente por defecto).
-    # tickvals/ticktext solo con modelos que tienen violín (evita desajuste si falta columna).
-    layout_kwargs = dict(
+    layout_kwargs: dict = dict(
         **PLOTLY_WHITE_LAYOUT_KWARGS,
-        title=f'{variable} distribution',
+        title=None,
         xaxis_title='',
         yaxis_title=_variable_name_to_axis_label(variable),
         violinmode='overlay',
+        showlegend=False,
         font=dict(
-                family=_PLOTLY_SERIF,
-                size=PLOTLY_PAPER_FONT_SIZE,
-                color=_PLOTLY_TEXT,
-            ),
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_FONT_SIZE,
+            color=_PLOTLY_TEXT,
+        ),
     )
     if plotted_names:
         layout_kwargs['xaxis'] = dict(
@@ -1909,6 +2024,13 @@ def plot_action_distribution(df_dict, variable, colors=None):
             tickvals=plotted_names,
             ticktext=plotted_names,
         )
+    if value_arrays:
+        y0, y1 = _violin_y_range_from_arrays(value_arrays)
+        yaxis_cfg: dict = dict(range=[y0, y1], autorange=False)
+        if variable == 'water_temperature':
+            yaxis_cfg['dtick'] = 2.5
+        layout_kwargs['yaxis'] = yaxis_cfg
+
     fig.update_layout(**layout_kwargs)
 
     return fig
@@ -2240,6 +2362,59 @@ def _indoor_temperature_y_range(
     return (lo, hi)
 
 
+def _combined_indoor_temperature_y_range(
+    obs_data: pd.DataFrame,
+    zones: Sequence[Tuple[str, str, str]],
+    threshold: float,
+    *,
+    pad_c: float = 0.5,
+) -> tuple[float, float]:
+    """Unión del rango Y interior de todas las zonas (misma escala en subplots apilados)."""
+    los: list[float] = []
+    his: list[float] = []
+    for temp_col, sp_col, _ in zones:
+        lo, hi = _indoor_temperature_y_range(
+            obs_data, temp_col, sp_col, threshold, pad_c=pad_c
+        )
+        los.append(lo)
+        his.append(hi)
+    return min(los), max(his)
+
+
+def _nice_temperature_dtick(y_lo: float, y_hi: float) -> float:
+    """Espaciado uniforme de ticks (°C) según el span del eje."""
+    span = y_hi - y_lo
+    if span <= 10:
+        return 1.0
+    if span <= 22:
+        return 2.0
+    return 5.0
+
+
+def _outdoor_temperature_y_range(series: pd.Series, *, pad_c: float = 2.0) -> tuple[float, float]:
+    """Rango Y para temperatura exterior (panel inferior)."""
+    s = pd.to_numeric(series, errors='coerce').dropna()
+    if s.empty:
+        return (-5.0, 35.0)
+    arr = s.to_numpy(dtype=float)
+    lo, hi = float(np.min(arr)), float(np.max(arr))
+    if not math.isfinite(lo) or not math.isfinite(hi):
+        return (-5.0, 35.0)
+    lo -= pad_c
+    hi += pad_c
+    if hi <= lo:
+        lo -= 1.0
+        hi += 1.0
+    return lo, hi
+
+
+def _subplot_domain_refs(row_1based: int) -> tuple[str, str]:
+    """``xref`` / ``yref`` para anotaciones ancladas al dominio (una columna)."""
+    if row_1based <= 1:
+        return 'x domain', 'y domain'
+    return f'x{row_1based} domain', f'y{row_1based} domain'
+
+
 def add_temperature_traces(
     fig,
     obs_data,
@@ -2289,7 +2464,7 @@ def add_temperature_traces(
             x=x_vals,
             y=sp_upper,
             mode="lines",
-            line=dict(color=_COMFORT_BAND_EDGE_COLOR, width=1),
+            line=dict(color=_COMFORT_BAND_LINE_COLOR, width=1),
             showlegend=False,
             hoverinfo="skip",
         ),
@@ -2300,7 +2475,7 @@ def add_temperature_traces(
             x=x_vals,
             y=sp_lower,
             mode="lines",
-            line=dict(color=_COMFORT_BAND_EDGE_COLOR, width=1),
+            line=dict(color=_COMFORT_BAND_LINE_COLOR, width=1),
             fillcolor=_COMFORT_BAND_FILLCOLOR,
             fill="tonexty",
             name=band_label if show_legend else None,
@@ -2443,6 +2618,16 @@ def _xaxis_layout_for_datetime_span(dt: pd.Series) -> dict:
     return out
 
 
+def _xaxis_monthly_ticks_kw() -> dict:
+    """Un tick por mes con etiqueta mes + año (evita repetir solo el mes en spans largos)."""
+    return dict(
+        type='date',
+        dtick='M1',
+        tickformat='%b %Y',
+        tickangle=-28,
+    )
+
+
 def _export_plotly_figure(
     fig: go.Figure,
     path_stem: Path,
@@ -2462,13 +2647,15 @@ def _export_plotly_figure(
     if export_format == "html":
         fig.write_html(str(path_stem.with_suffix(".html")))
         return
+    out_png = path_stem.with_suffix(".png")
     try:
         fig.write_image(
-            str(path_stem.with_suffix(".png")),
+            str(out_png),
             width=png_width,
             height=png_height,
             scale=png_scale,
         )
+        _autocrop_png_whitespace(out_png)
     except Exception as e:
         print(f"⚠️ No se pudo exportar PNG ({path_stem.name}): {e}")
 
@@ -2490,14 +2677,23 @@ def plot_case_temperatures(
     png_height_single: int = 500,
     png_scale: int = 2,
     paper_style: bool = False,
+    export_zone_subfolders: bool = True,
 ) -> None:
     """Grid + per-zone time views: export as PNG (default) or interactive HTML.
 
-    Same data/comfort/outdoor conventions as :func:`plot_temperature_one_zone`.
+    La rejilla resumen es **una columna** (subplots apilados): mismos límites y
+    espaciado de ticks en el eje Y para todas las zonas; etiquetas de tiempo solo
+    en el panel inferior; nombre de cada zona alineado a la **izquierda** en su
+    panel. Si hay datos de exterior (columna ``outdoor_temperature`` o la indicada
+    en ``outdoor_temp_var``), se añade un último panel solo con la temperatura
+    exterior (sin eje Y secundario en las zonas).
+
+    Same data/comfort conventions as :func:`plot_temperature_one_zone`.
     ``zones`` is a sequence of ``(temp_var, setpoint_var, zone_name)`` per room.
-    ``df`` must include ``datetime`` and all columns referenced by ``zones`` (and
-    optionally ``outdoor_temp_var``).
+    ``df`` must include ``datetime`` and all columns referenced by ``zones``.
     ``paper_style``: al exportar, aplica :func:`apply_plotly_paper_style`.
+    ``export_zone_subfolders``: si es True (por defecto), exporta también las
+    figuras por zona bajo ``case{N}/{slug_zona}/`` (periodo completo, día, semana, mes).
     """
     if "datetime" not in df.columns:
         raise ValueError("El DataFrame debe contener la columna 'datetime'.")
@@ -2554,35 +2750,22 @@ def plot_case_temperatures(
     if n_zones == 0:
         return
 
-    ncols = 2
-    nrows = (n_zones + ncols - 1) // ncols
-    n_cells = nrows * ncols
-    subplot_titles = [z[2] for z in zones] + [""] * (n_cells - n_zones)
-
-    has_outdoor = (
-        outdoor_temp_var is not None and outdoor_temp_var in obs.columns
+    outdoor_col: Optional[str] = outdoor_temp_var
+    if outdoor_col is None and 'outdoor_temperature' in obs.columns:
+        outdoor_col = 'outdoor_temperature'
+    include_outdoor_panel = (
+        outdoor_col is not None
+        and outdoor_col in obs.columns
+        and obs[outdoor_col].notna().any()
     )
-    specs = [
-        [{"secondary_y": bool(has_outdoor)} for _ in range(ncols)]
-        for _ in range(nrows)
-    ]
+
+    n_rows = n_zones + (1 if include_outdoor_panel else 0)
     fig = sp.make_subplots(
-        rows=nrows,
-        cols=ncols,
-        subplot_titles=subplot_titles,
-        specs=specs,
-        vertical_spacing=PLOTLY_SUBPLOT_VERTICAL_SPACING,
+        rows=n_rows,
+        cols=1,
+        vertical_spacing=PLOTLY_ZONE_TEMP_GRID_VERTICAL_SPACING,
         horizontal_spacing=PLOTLY_SUBPLOT_HORIZONTAL_SPACING,
     )
-    # make_subplots no expone subplot_titles_font; los títulos son layout.annotations.
-    if fig.layout.annotations:
-        fig.update_annotations(
-            font=dict(
-                family=_PLOTLY_SERIF,
-                size=PLOTLY_PAPER_AXIS_TITLE_SIZE,
-                color=_PLOTLY_TEXT,
-            )
-        )
 
     if temp_colors is None:
         colors_seq: List[Optional[str]] = [None] * n_zones
@@ -2591,10 +2774,11 @@ def plot_case_temperatures(
         if len(colors_seq) < n_zones:
             colors_seq.extend([None] * (n_zones - len(colors_seq)))
 
+    y_lo, y_hi = _combined_indoor_temperature_y_range(obs, zones, threshold)
+    y_dtick = _nice_temperature_dtick(y_lo, y_hi)
 
     for i, (temp_col, sp_col, _zone_title) in enumerate(zones):
-        row = (i // ncols) + 1
-        col = (i % ncols) + 1
+        row = i + 1
         add_temperature_traces(
             fig,
             obs,
@@ -2602,33 +2786,94 @@ def plot_case_temperatures(
             sp_col,
             show_legend=(i == 0),
             row=row,
-            col=col,
+            col=1,
             threshold=threshold,
             temp_color=colors_seq[i],
-            outdoor_temp_var=outdoor_temp_var,
+            outdoor_temp_var='',
         )
-        y_lo, y_hi = _indoor_temperature_y_range(obs, temp_col, sp_col, threshold)
         fig.update_yaxes(
-            title_text="",
-            row=row,
-            col=col,
-            secondary_y=False,
+            title_text='',
             range=[y_lo, y_hi],
+            dtick=y_dtick,
+            row=row,
+            col=1,
         )
-        if has_outdoor:
-            fig.update_yaxes(
-                title=dict(text="Outdoor (°C)", font=dict(color="gray")),
-                row=row,
-                col=col,
-                secondary_y=True,
-                showgrid=False,
-                tickfont=dict(color="gray"),
-            )
+
+    if include_outdoor_panel:
+        x_series = _obs_x_values(obs)
+        x_vals = x_series.to_numpy()
+        outdoor_arr = pd.to_numeric(obs[outdoor_col], errors='coerce').to_numpy()
+        fig.add_trace(
+            go.Scatter(
+                x=x_vals,
+                y=outdoor_arr,
+                mode='lines',
+                name='Outdoor temperature',
+                line=dict(color=_PLOTLY_TEXT, width=1.5),
+                showlegend=True,
+                hovertemplate='Outdoor: %{y:.2f}°C<extra></extra>',
+            ),
+            row=n_rows,
+            col=1,
+        )
+        o_lo, o_hi = _outdoor_temperature_y_range(obs[outdoor_col])
+        fig.update_yaxes(
+            range=[o_lo, o_hi],
+            row=n_rows,
+            col=1,
+        )
+
+    ann_font = dict(
+        family=_PLOTLY_SERIF,
+        size=PLOTLY_PAPER_AXIS_TITLE_SIZE,
+        color=_PLOTLY_TEXT,
+    )
+    # Títulos alineados a la izquierda, fuera del área de datos: ancla inferior en el borde
+    # superior del dominio Y y ligero desplazamiento en px hacia arriba (evita solapar la serie).
+    for i, (_, _, room_title) in enumerate(zones):
+        row = i + 1
+        xref, yref = _subplot_domain_refs(row)
+        fig.add_annotation(
+            xref=xref,
+            yref=yref,
+            x=0,
+            y=1,
+            xanchor='left',
+            yanchor='bottom',
+            yshift=6,
+            text=room_title,
+            showarrow=False,
+            font=ann_font,
+        )
+    if include_outdoor_panel:
+        xref, yref = _subplot_domain_refs(n_rows)
+        fig.add_annotation(
+            xref=xref,
+            yref=yref,
+            x=0,
+            y=1,
+            xanchor='left',
+            yanchor='bottom',
+            yshift=6,
+            text='Outdoor temperature',
+            showarrow=False,
+            font=ann_font,
+        )
 
     fig.update_xaxes(**xa_period)
+    for r in range(2, n_rows + 1):
+        fig.update_xaxes(matches='x', row=r, col=1)
+    fig.update_xaxes(showticklabels=False)
+    fig.update_xaxes(showticklabels=True, row=n_rows, col=1)
+    if include_outdoor_panel:
+        fig.update_xaxes(
+            **_xaxis_monthly_ticks_kw(),
+            row=n_rows,
+            col=1,
+        )
 
     grid_title = summary_title.strip() or f"case{case_id}"
-    grid_height = max(250 * nrows, 480)
+    grid_height = max(220 * n_rows, 480)
     # width/height en layout: Kaleido usa las mismas dimensiones que write_image;
     # si solo se pasan a write_image, la anotación del eje Y puede solaparse con los ticks.
     fig.update_layout(
@@ -2654,14 +2899,14 @@ def plot_case_temperatures(
                 color=_PLOTLY_TEXT,
             ),
         ),
-        margin=dict(l=108, r=20, b=30, t=52),
+        margin=dict(l=120, r=20, b=30, t=52),
     )
     # Una sola etiqueta de eje Y para la rejilla (temperatura interior); evita repetir en cada zona.
     fig.add_annotation(
         text="Temperature (°C)",
         xref="paper",
         yref="paper",
-        x=-0.076,
+        x=-0.072,
         y=0.5,
         xanchor="center",
         yanchor="middle",
@@ -2684,6 +2929,9 @@ def plot_case_temperatures(
         png_scale=png_scale,
         paper_style=paper_style,
     )
+
+    if not export_zone_subfolders:
+        return
 
     for i, (temp_col, sp_col, room_title) in enumerate(zones):
         room_slug = _zone_output_slug(room_title)
