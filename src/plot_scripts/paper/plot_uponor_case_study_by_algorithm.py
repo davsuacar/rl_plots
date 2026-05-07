@@ -316,6 +316,7 @@ def run_study_plots(
             df_dict=training_progress,
             variable_name='mean_reward',
             colors=colors[:_n],
+            marker_every=5,
         )
         fig.update_layout(title=None, xaxis_title='Training episode', yaxis_title='Average reward')
         save_figure(
