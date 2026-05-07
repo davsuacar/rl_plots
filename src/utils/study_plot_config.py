@@ -140,7 +140,7 @@ CASE_STUDY_CONFIG = StudyPlotConfig(
 )
 
 PILOT_CASE_1_CONFIG = StudyPlotConfig(
-    study_label='pilot_case1',
+    study_label='Case 1',
     output_base=Path(
         '/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_1'
     ),
@@ -157,6 +157,136 @@ PILOT_CASE_1_CONFIG = StudyPlotConfig(
         'TQC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/TQC/training/progress.csv',
         'SAC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/SAC/training/progress.csv',
         'RecPPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/RPO/training/progress.csv',
+    },
+    zone_names=[
+        'Living Room',
+        'Bathroom',
+        'Bedroom 1',
+        'Bedroom 2',
+        'Bedroom 3',
+    ],
+    temperature_variables=[
+        'air_temperature_living',
+        'air_temperature_kitchen',
+        'air_temperature_bed1',
+        'air_temperature_bed2',
+        'air_temperature_bed3',
+    ],
+    setpoint_variables=[
+        'heating_setpoint_living',
+        'heating_setpoint_kitchen',
+        'heating_setpoint_bed1',
+        'heating_setpoint_bed2',
+        'heating_setpoint_bed3',
+    ],
+    flow_variables=[
+        'flow_rate_living',
+        'flow_rate_kitchen',
+        'flow_rate_bed1',
+        'flow_rate_bed2',
+        'flow_rate_bed3',
+    ],
+    inlet_temperature_variables=[
+        'radiant_hvac_inlet_temperature_living',
+        'radiant_hvac_inlet_temperature_kitchen',
+        'radiant_hvac_inlet_temperature_bed1',
+        'radiant_hvac_inlet_temperature_bed2',
+        'radiant_hvac_inlet_temperature_bed3',
+    ],
+    outlet_temperature_variables=[
+        'radiant_hvac_outlet_temperature_living',
+        'radiant_hvac_outlet_temperature_kitchen',
+        'radiant_hvac_outlet_temperature_bed1',
+        'radiant_hvac_outlet_temperature_bed2',
+        'radiant_hvac_outlet_temperature_bed3',
+    ],
+    names_reference=[],
+    names_comparison=['PPO', 'TQC', 'SAC', 'RecPPO'],
+)
+
+PILOT_CASE_2_CONFIG = StudyPlotConfig(
+    study_label='Case 2',
+    output_base=Path(
+        '/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_2'
+    ),
+    data_dir='/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso2',
+    episode=2,
+    experiments={
+        'PPO': 'PPO/Eplus-PPO-radiant_case2_heating-Example_2026-03-16_14:35-res1',
+        'TQC': 'TQC/Eplus-TQC-radiant_case2_heating-Example_2026-03-16_14:34-res1',
+        'SAC': 'SAC/Eplus-SAC-radiant_case2_heating-Example_2026-03-16_14:35-res1',
+        'RecPPO': 'RPO/Eplus-RecurrentPPO-radiant_case2_heating-Example_2026-03-16_14:34-res1',
+    },
+    training_progress_paths={
+        'PPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso2/PPO/training/progress.csv',
+        'TQC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso2/TQC/training/progress.csv',
+        'SAC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso2/SAC/training/progress.csv',
+        'RecPPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso2/RPO/training/progress.csv',
+    },
+    zone_names=[
+        'Living Room',
+        'Bathroom',
+        'Bedroom 1',
+        'Bedroom 2',
+        'Bedroom 3',
+    ],
+    temperature_variables=[
+        'air_temperature_living',
+        'air_temperature_kitchen',
+        'air_temperature_bed1',
+        'air_temperature_bed2',
+        'air_temperature_bed3',
+    ],
+    setpoint_variables=[
+        'heating_setpoint_living',
+        'heating_setpoint_kitchen',
+        'heating_setpoint_bed1',
+        'heating_setpoint_bed2',
+        'heating_setpoint_bed3',
+    ],
+    flow_variables=[
+        'flow_rate_living',
+        'flow_rate_kitchen',
+        'flow_rate_bed1',
+        'flow_rate_bed2',
+        'flow_rate_bed3',
+    ],
+    inlet_temperature_variables=[
+        'radiant_hvac_inlet_temperature_living',
+        'radiant_hvac_inlet_temperature_kitchen',
+        'radiant_hvac_inlet_temperature_bed1',
+        'radiant_hvac_inlet_temperature_bed2',
+        'radiant_hvac_inlet_temperature_bed3',
+    ],
+    outlet_temperature_variables=[
+        'radiant_hvac_outlet_temperature_living',
+        'radiant_hvac_outlet_temperature_kitchen',
+        'radiant_hvac_outlet_temperature_bed1',
+        'radiant_hvac_outlet_temperature_bed2',
+        'radiant_hvac_outlet_temperature_bed3',
+    ],
+    names_reference=[],
+    names_comparison=['PPO', 'TQC', 'SAC', 'RecPPO'],
+)
+
+PILOT_CASE_3_CONFIG = StudyPlotConfig(
+    study_label='Case 3',
+    output_base=Path(
+        '/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_3'
+    ),
+    data_dir='/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso3',
+    episode=2,
+    experiments={
+        'PPO': 'PPO/Eplus-PPO-radiant_case3_heating-Example_2026-03-19_09:00-res1',
+        'TQC': 'TQC/Eplus-TQC-radiant_case3_heating-Example_2026-03-16_14:39-res1',
+        'SAC': 'SAC/Eplus-SAC-radiant_case3_heating-Example_2026-03-16_14:38-res1',
+        'RecPPO': 'RPO/Eplus-RecurrentPPO-radiant_case3_heating-Example_2026-03-16_14:40-res1',
+    },
+    training_progress_paths={
+        'PPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso3/PPO/training/progress.csv',
+        'TQC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso3/TQC/training/progress.csv',
+        'SAC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso3/SAC/training/progress.csv',
+        'RecPPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso3/RPO/training/progress.csv',
     },
     zone_names=[
         'Living Room',
