@@ -5,13 +5,14 @@ import functools
 import math
 import os
 import re
-from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
-from typing import AbstractSet, Dict, List, Optional, Tuple, cast
+from typing import AbstractSet, Dict, Optional, Tuple, cast
 
 import pandas as pd
 import plotly.io as pio
+
+from utils.study_plot_config import *
 from utils.plot_functions.plot_functions import (
     add_datetime_column,
     compute_crf_daily_stats,
@@ -54,58 +55,6 @@ REWARD_ENERGY_COL = 'mean_reward_energy_term'
 INFO_COMFORT_COL = 'comfort_term'
 INFO_ENERGY_COL = 'energy_term'
 REWARD_TERMS_SMOOTH_WINDOW = 12
-
-# Paleta alineada con ``sample_plots`` (Tab10 + 5 tonos Tab20 emparejados / matplotlib).
-_TAB10 = (
-    '#1f77b4',  # tab:blue
-    '#ff7f0e',  # tab:orange
-    '#2ca02c',  # tab:green
-    '#d62728',  # tab:red
-    '#9467bd',  # tab:purple
-    '#8c564b',  # tab:brown
-    '#e377c2',  # tab:pink
-    '#7f7f7f',  # tab:gray
-    '#bcbd22',  # tab:olive
-    '#17becf',  # tab:cyan
-    '#aec7e8',  # tab20 light blue
-    '#ffbb78',  # tab20 light orange
-    '#98df8a',  # tab20 light green
-    '#ff9896',  # tab20 light red
-    '#c5b0d5',  # tab20 light purple
-)
-DEFAULT_COLORS = list(_TAB10)
-
-
-@dataclass
-class StudyPlotConfig:
-    """Un conjunto de rutas de datos + variables + carpeta de salida para generar todas las figuras."""
-
-    study_label: str
-    output_base: Path
-    data_dir: str
-    episode: int
-    experiments: Dict[str, str]
-    training_progress_paths: Dict[str, str]
-    zone_names: List[str]
-    temperature_variables: List[str]
-    setpoint_variables: List[str]
-    flow_variables: List[str]
-    inlet_temperature_variables: List[str]
-    outlet_temperature_variables: List[str]
-    names_reference: List[str] = field(default_factory=list)
-    names_comparison: Optional[List[str]] = None
-    filter_interval: Optional[Tuple[str, str]] = (
-        '2006-11-01 00:00:00',
-        '2007-03-31 23:55:00',
-    )
-    zone_temp_plot_daily_date: Optional[pd.Timestamp] = None
-    temperature_threshold: float = 1.0
-    smooth_window: int = 1
-    energy_variable: str = 'heat_source_electricity_rate'
-    water_temperature_variable: str = 'water_temperature'
-    heat_pump_outlet_variable: str = 'heat_source_load_side_outlet_temp'
-    colors: List[str] = field(default_factory=lambda: list(DEFAULT_COLORS))
-    temp_zone_line_color: str = _TAB10[0]
 
 
 def _slugify(text: str) -> str:
@@ -225,157 +174,6 @@ def _validate_zone_lists(cfg: StudyPlotConfig) -> None:
                 f'{cfg.study_label}: {label} tiene longitud {len(seq)}; '
                 f'se esperaba {n} (como zone_names).'
             )
-
-
-# =============================================================================
-# PRESETS — añade entradas aquí para nuevas carpetas de salida
-# =============================================================================
-
-CASE_STUDY_CONFIG = StudyPlotConfig(
-    study_label='case_study',
-    output_base=Path('/home/jovyan/work/data/paper/plots/case_study/training_and_evaluation'),
-    data_dir='/home/jovyan/work/data/paper/data/case_study/simulation',
-    episode=10,
-    experiments={
-        'PPO': 'PPO/Eplus-PPO-evaluation',
-        'TQC': 'TQC/Eplus-TQC-evaluation',
-        'SAC': 'SAC/Eplus-SAC-evaluation',
-        'RecPPO': 'RPO/Eplus-RecurrentPPO-evaluation',
-    },
-    training_progress_paths={
-        'PPO': '/home/jovyan/work/data/paper/data/case_study/simulation/PPO/training/progress.csv',
-        'TQC': '/home/jovyan/work/data/paper/data/case_study/simulation/TQC/training/progress.csv',
-        'SAC': '/home/jovyan/work/data/paper/data/case_study/simulation/SAC/training/progress.csv',
-        'RecPPO': '/home/jovyan/work/data/paper/data/case_study/simulation/RPO/training/progress.csv',
-    },
-    zone_names=[
-        'Living-Kitchen',
-        'Bathroom-Lobby',
-        'Bedroom 1',
-        'Bedroom 2',
-        'Bedroom 3',
-        'Bathroom-Corridor',
-        'Bathroom-Dressing',
-    ],
-    temperature_variables=[
-        'air_temperature_f0_living-kitchen',
-        'air_temperature_f0_bathroom-lobby',
-        'air_temperature_f1_bedroom1',
-        'air_temperature_f1_bedroom2',
-        'air_temperature_f1_bedroom3',
-        'air_temperature_f1_bathroom-corridor',
-        'air_temperature_f1_bathroom-dressing',
-    ],
-    setpoint_variables=[
-        'heating_setpoint_f0_living-kitchen',
-        'heating_setpoint_f0_bathroom-lobby',
-        'heating_setpoint_f1_bedroom1',
-        'heating_setpoint_f1_bedroom2',
-        'heating_setpoint_f1_bedroom3',
-        'heating_setpoint_f1_bathroom-corridor',
-        'heating_setpoint_f1_bathroom-dressing',
-    ],
-    flow_variables=[
-        'flow_rate_f0_living-kitchen',
-        'flow_rate_f0_bathroom-lobby',
-        'flow_rate_f1_bedroom1',
-        'flow_rate_f1_bedroom2',
-        'flow_rate_f1_bedroom3',
-        'flow_rate_f1_bathroom-corridor',
-        'flow_rate_f1_bathroom-dressing',
-    ],
-    inlet_temperature_variables=[
-        'radiant_hvac_inlet_temperature_f0_living-kitchen',
-        'radiant_hvac_inlet_temperature_f0_bathroom-lobby',
-        'radiant_hvac_inlet_temperature_f1_bedroom1',
-        'radiant_hvac_inlet_temperature_f1_bedroom2',
-        'radiant_hvac_inlet_temperature_f1_bedroom3',
-        'radiant_hvac_inlet_temperature_f1_bathroom-corridor',
-        'radiant_hvac_inlet_temperature_f1_bathroom-dressing',
-    ],
-    outlet_temperature_variables=[
-        'radiant_hvac_outlet_temperature_f0_living-kitchen',
-        'radiant_hvac_outlet_temperature_f0_bathroom-lobby',
-        'radiant_hvac_outlet_temperature_f1_bedroom1',
-        'radiant_hvac_outlet_temperature_f1_bedroom2',
-        'radiant_hvac_outlet_temperature_f1_bedroom3',
-        'radiant_hvac_outlet_temperature_f1_bathroom-corridor',
-        'radiant_hvac_outlet_temperature_f1_bathroom-dressing',
-    ],
-    names_reference=[],
-    names_comparison=['PPO', 'TQC', 'SAC', 'RecPPO'],
-)
-
-PILOT_CASO_1_CONFIG = StudyPlotConfig(
-    study_label='pilot_caso_1',
-    output_base=Path(
-        '/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_1'
-    ),
-    data_dir='/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1',
-    episode=2,
-    experiments={
-        'PPO': 'PPO/Eplus-PPO-radiant_case1_heating-Example_2026-03-16_13:32-res1',
-        'TQC': 'TQC/Eplus-TQC-radiant_case1_heating-Example_2026-03-19_08:28-res1',
-        'SAC': 'SAC/Eplus-SAC-radiant_case1_heating-Example_2026-03-16_13:42-res1',
-        'RecPPO': 'RPO/Eplus-RecurrentPPO-radiant_case1_heating-Example_2026-03-16_13:41-res1',
-    },
-    training_progress_paths={
-        'PPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/PPO/training/progress.csv',
-        'TQC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/TQC/training/progress.csv',
-        'SAC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/SAC/training/progress.csv',
-        'RecPPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/RPO/training/progress.csv',
-    },
-    zone_names=[
-        'Living Room',
-        'Bathroom',
-        'Bedroom 1',
-        'Bedroom 2',
-        'Bedroom 3',
-    ],
-    temperature_variables=[
-        'air_temperature_living',
-        'air_temperature_kitchen',
-        'air_temperature_bed1',
-        'air_temperature_bed2',
-        'air_temperature_bed3',
-    ],
-    setpoint_variables=[
-        'heating_setpoint_living',
-        'heating_setpoint_kitchen',
-        'heating_setpoint_bed1',
-        'heating_setpoint_bed2',
-        'heating_setpoint_bed3',
-    ],
-    flow_variables=[
-        'flow_rate_living',
-        'flow_rate_kitchen',
-        'flow_rate_bed1',
-        'flow_rate_bed2',
-        'flow_rate_bed3',
-    ],
-    inlet_temperature_variables=[
-        'radiant_hvac_inlet_temperature_living',
-        'radiant_hvac_inlet_temperature_kitchen',
-        'radiant_hvac_inlet_temperature_bed1',
-        'radiant_hvac_inlet_temperature_bed2',
-        'radiant_hvac_inlet_temperature_bed3',
-    ],
-    outlet_temperature_variables=[
-        'radiant_hvac_outlet_temperature_living',
-        'radiant_hvac_outlet_temperature_kitchen',
-        'radiant_hvac_outlet_temperature_bed1',
-        'radiant_hvac_outlet_temperature_bed2',
-        'radiant_hvac_outlet_temperature_bed3',
-    ],
-    names_reference=[],
-    names_comparison=['PPO', 'TQC', 'SAC', 'RecPPO'],
-)
-
-# Todas las configuraciones que debe procesar este script (una carpeta ``output_base`` por entrada).
-STUDY_CONFIGS: List[StudyPlotConfig] = [
-    CASE_STUDY_CONFIG,
-    #PILOT_CASO_1_CONFIG,
-]
 
 
 def run_study_plots(
@@ -519,7 +317,7 @@ def run_study_plots(
             variable_name='mean_reward',
             colors=colors[:_n],
         )
-        fig.update_layout(title=None, xaxis_title='Episode', yaxis_title='Mean reward')
+        fig.update_layout(title=None, xaxis_title='Training episode', yaxis_title='Average reward')
         save_figure(
             fig, out_dirs.progress / 'training_progress', width=1200, height=700, scale=2
         )
@@ -557,7 +355,7 @@ def run_study_plots(
             if filter_interval is not None:
                 _kwargs['period_start'] = pd.Timestamp(filter_interval[0]).to_pydatetime()
                 _kwargs['period_end'] = pd.Timestamp(filter_interval[1]).to_pydatetime()
-            plot_case_temperatures(**_kwargs)
+            plot_case_temperatures(**_kwargs, export_zone_subfolders=False)
 
     # =============================================================================
     # FIGURES — Temperature vs flow (control)
@@ -894,7 +692,7 @@ def run_study_plots(
                 evaluation_progress,
                 'comfort_violation_time(%)',
                 colors=colors[:df_num],
-                yaxis_title='Episodic comfort violation time (%)',
+                yaxis_title='Mean episodic comfort violation time (%)',
                 xaxis_title='',
             )
             save_figure(
@@ -912,7 +710,7 @@ def run_study_plots(
             )
             fig.update_layout(
                 title=None,
-                yaxis_title='Episodic temperature violation (ºC)',
+                yaxis_title='Mean episodic comfort violation (ºC)',
                 xaxis_title='',
             )
             save_figure(
@@ -927,7 +725,7 @@ def run_study_plots(
                 evaluation_progress,
                 'mean_power_demand',
                 colors=colors[:df_num],
-                yaxis_title='Episodic power demand (W)',
+                yaxis_title='Mean episodic power demand (W)',
                 xaxis_title='',
             )
             fig.update_layout(title=None, yaxis_title='Power demand (W)')
@@ -1071,25 +869,18 @@ def run_study_plots(
             )
 
 
-def main(
-    study_labels: Optional[List[str]] = None,
-    output_sections: Optional[AbstractSet[str]] = None,
-) -> None:
-    """Genera figuras para cada entrada en ``STUDY_CONFIGS`` (o solo las indicadas).
+def main(output_sections: Optional[AbstractSet[str]] = None) -> None:
+    """Genera figuras para cada entrada en ``STUDY_CONFIGS``.
 
     ``output_sections``: ``None`` = todas las carpetas lógicas; si se pasa un conjunto,
     solo esas (véase ``OUTPUT_SECTION_IDS``).
     """
     pio.defaults.default_scale = 2
-    configs = STUDY_CONFIGS
-    if study_labels is not None:
-        label_set = set(study_labels)
-        configs = [c for c in STUDY_CONFIGS if c.study_label in label_set]
-        missing = label_set - {c.study_label for c in configs}
-        if missing:
-            raise ValueError(f'Estudio(s) desconocido(s): {sorted(missing)}')
-
-    for cfg in configs:
+    STUDY_CONFIGS = [
+        CASE_STUDY_CONFIG
+        # PILOT_CASE_1_CONFIG
+    ]
+    for cfg in STUDY_CONFIGS:
         print(f'=== [{cfg.study_label}] -> {cfg.output_base} ===')
         run_study_plots(cfg, output_sections=output_sections)
 
@@ -1100,14 +891,6 @@ def _parse_cli():
             'Genera figuras del case study. Sin --outputs se crean todas las '
             'subcarpetas bajo output_base.'
         )
-    )
-    p.add_argument(
-        '--study',
-        '-s',
-        action='append',
-        metavar='LABEL',
-        dest='studies',
-        help='Solo este ``study_label`` de ``STUDY_CONFIGS``. Repetible.',
     )
     p.add_argument(
         '--outputs',
@@ -1127,4 +910,4 @@ def _parse_cli():
 if __name__ == '__main__':
     _args = _parse_cli()
     _sections = frozenset(_args.outputs) if _args.outputs else None
-    main(study_labels=_args.studies, output_sections=_sections)
+    main(output_sections=_sections)
