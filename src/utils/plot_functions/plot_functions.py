@@ -2581,7 +2581,7 @@ def _zone_output_slug(zone_name: str) -> str:
 def _xaxis_layout_for_datetime_span(dt: pd.Series) -> dict:
     """Plotly ``xaxis`` / ``update_xaxes`` kwargs from the span of a datetime column.
 
-    Chooses ``tickformat`` (and optional ``dtick`` / ``tickangle``) so short windows
+    Chooses ``tickformat`` (and optional ``dtick``) so short windows
     do not repeat coarse labels (e.g. month abbreviation only on a single-day plot).
     """
     out: dict = {"type": "date"}
@@ -2606,26 +2606,15 @@ def _xaxis_layout_for_datetime_span(dt: pd.Series) -> dict:
         out["tickformat"] = "%H:%M"
         out["dtick"] = 2 * 3600 * 1000
     elif days <= 14:
-        out["tickformat"] = "%a %d %b %Y" if cross_year else "%a %d %b"
-        out["tickangle"] = -35
+        # Corto: día + mes (+ año 2 dígitos si cruza año); sin inclinación.
+        out["tickformat"] = "%a %d %b %y" if cross_year else "%a %d %b"
     elif days <= 120:
-        out["tickformat"] = "%d %b %Y" if cross_year else "%d %b"
-        if cross_year:
-            out["tickangle"] = -35
+        out["tickformat"] = "%d %b %y" if cross_year else "%d %b"
     else:
-        out["tickformat"] = "%b %Y"
+        # Span largo: día + mes + año corto (único por tick sin repetir solo mes/año).
+        out["tickformat"] = "%d %b %y"
 
     return out
-
-
-def _xaxis_monthly_ticks_kw() -> dict:
-    """Un tick por mes con etiqueta mes + año (evita repetir solo el mes en spans largos)."""
-    return dict(
-        type='date',
-        dtick='M1',
-        tickformat='%b %Y',
-        tickangle=-28,
-    )
 
 
 def _export_plotly_figure(
@@ -2686,7 +2675,9 @@ def plot_case_temperatures(
     en el panel inferior; nombre de cada zona alineado a la **izquierda** en su
     panel. Si hay datos de exterior (columna ``outdoor_temperature`` o la indicada
     en ``outdoor_temp_var``), se añade un último panel solo con la temperatura
-    exterior (sin eje Y secundario en las zonas).
+    exterior (sin eje Y secundario en las zonas). El eje X del panel inferior
+    usa los mismos ticks que los paneles interiores (``matches='x'`` + mismo
+    ``xa_period``).
 
     Same data/comfort conventions as :func:`plot_temperature_one_zone`.
     ``zones`` is a sequence of ``(temp_var, setpoint_var, zone_name)`` per room.
@@ -2865,12 +2856,6 @@ def plot_case_temperatures(
         fig.update_xaxes(matches='x', row=r, col=1)
     fig.update_xaxes(showticklabels=False)
     fig.update_xaxes(showticklabels=True, row=n_rows, col=1)
-    if include_outdoor_panel:
-        fig.update_xaxes(
-            **_xaxis_monthly_ticks_kw(),
-            row=n_rows,
-            col=1,
-        )
 
     grid_title = summary_title.strip() or f"case{case_id}"
     grid_height = max(220 * n_rows, 480)
