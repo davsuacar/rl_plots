@@ -204,10 +204,10 @@ PILOT_CASE_1_CONFIG = StudyPlotConfig(
     names_comparison=['PPO', 'TQC', 'SAC', 'RecPPO'],
 )
 
-PILOT_CASE_2_CONFIG = StudyPlotConfig(
-    study_label='Case 2',
+PILOT_CASE_3_CONFIG = StudyPlotConfig(
+    study_label='Case 3',
     output_base=Path(
-        '/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_2'
+        '/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_3'
     ),
     data_dir='/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso2',
     episode=2,
@@ -269,10 +269,10 @@ PILOT_CASE_2_CONFIG = StudyPlotConfig(
     names_comparison=['PPO', 'TQC', 'SAC', 'RecPPO'],
 )
 
-PILOT_CASE_3_CONFIG = StudyPlotConfig(
-    study_label='Case 3',
+PILOT_CASE_2_CONFIG = StudyPlotConfig(
+    study_label='Case 2',
     output_base=Path(
-        '/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_3'
+        '/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_2'
     ),
     data_dir='/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso3',
     episode=2,
