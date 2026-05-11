@@ -7,10 +7,13 @@ import os
 import re
 from pathlib import Path
 from types import SimpleNamespace
-from typing import AbstractSet, Dict, Optional, Tuple, cast
+from typing import AbstractSet, Dict, List, Optional, Tuple, cast
 
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import plotly.io as pio
+import plotly.subplots as sp
 
 from utils.study_plot_config import *
 from utils.plot_functions.plot_functions import (
@@ -36,6 +39,11 @@ from utils.plot_functions.plot_functions import (
     plot_dfs_bar_grouped_by_month,
     safe_read_csv,
     save_figure as _save_figure,
+    PLOTLY_PAPER_AXIS_TITLE_SIZE,
+    PLOTLY_PAPER_FONT_SIZE,
+    PLOTLY_PAPER_LEGEND_SIZE,
+    _PLOTLY_SERIF,
+    _PLOTLY_TEXT,
 )
 
 # Todas las exportaciones usan el estilo paper (sample_plots / seaborn whitegrid + serif).
@@ -174,6 +182,319 @@ def _validate_zone_lists(cfg: StudyPlotConfig) -> None:
                 f'{cfg.study_label}: {label} tiene longitud {len(seq)}; '
                 f'se esperaba {n} (como zone_names).'
             )
+
+
+def _multi_study_output_dir(configs: List[StudyPlotConfig]) -> Path:
+    """Carpeta de salida común para comparativas entre estudios."""
+    common = Path(os.path.commonpath([str(cfg.output_base) for cfg in configs]))
+    out = common / 'comparative_across_studies'
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def _load_training_progress(cfg: StudyPlotConfig) -> Dict[str, pd.DataFrame]:
+    out = {k: safe_read_csv(p) for k, p in cfg.training_progress_paths.items()}
+    return {k: v for k, v in out.items() if v is not None and not v.empty}
+
+
+def _load_evaluation_progress(cfg: StudyPlotConfig) -> Dict[str, pd.DataFrame]:
+    out = {
+        key: safe_read_csv(os.path.join(cfg.data_dir, run_folder, 'progress.csv'))
+        for key, run_folder in cfg.experiments.items()
+    }
+    return {k: v for k, v in out.items() if v is not None and not v.empty}
+
+
+def _build_multistudy_progress_grid(
+    study_cfgs: List[StudyPlotConfig],
+    output_dir: Path,
+) -> None:
+    """1 fila (N columnas): un panel de progress por estudio, con escala Y común."""
+    payload: List[Tuple[StudyPlotConfig, Dict[str, pd.DataFrame]]] = []
+    for cfg in study_cfgs:
+        tp = _load_training_progress(cfg)
+        if tp:
+            payload.append((cfg, tp))
+    if len(payload) < 2:
+        return
+
+    n = len(payload)
+    fig = sp.make_subplots(
+        rows=1,
+        cols=n,
+        subplot_titles=[cfg.study_label for cfg, _ in payload],
+        horizontal_spacing=0.012,
+    )
+
+    y_parts: List[np.ndarray] = []
+    for col, (cfg, tp) in enumerate(payload, start=1):
+        fig_study = plot_dfs_line(
+            df_dict=tp,
+            variable_name='mean_reward',
+            colors=cfg.colors[: len(tp)],
+        )
+        for tr in fig_study.data:
+            tr_copy = go.Scatter(**tr.to_plotly_json())
+            tr_copy.showlegend = bool(col == 1 and tr_copy.showlegend)
+            fig.add_trace(tr_copy, row=1, col=col)
+            y_ser = pd.to_numeric(pd.Series(tr_copy.y), errors='coerce').dropna()
+            y_arr = y_ser.to_numpy(dtype='float64')
+            if y_arr.size > 0:
+                y_parts.append(y_arr)
+
+    if y_parts:
+        yy = np.concatenate(y_parts)
+        y0, y1 = float(np.min(yy)), float(np.max(yy))
+        pad = 0.04 * (y1 - y0) if y1 > y0 else 1.0
+        fig.update_yaxes(range=[y0 - pad, y1 + pad])
+
+    for col in range(2, n + 1):
+        fig.update_yaxes(showticklabels=False, row=1, col=col)
+    fig.update_xaxes(title_text='', row=1, col='all')
+    fig.update_yaxes(
+        title_text='Average reward',
+        title_standoff=8,
+        row=1,
+        col=1,
+    )
+    for col in range(2, n + 1):
+        fig.update_yaxes(title_text='', row=1, col=col)
+
+    fig.update_layout(
+        title=None,
+        showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='center',
+            x=0.5,
+            font=dict(
+                family=_PLOTLY_SERIF,
+                size=PLOTLY_PAPER_LEGEND_SIZE,
+                color=_PLOTLY_TEXT,
+            ),
+        ),
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_FONT_SIZE,
+            color=_PLOTLY_TEXT,
+        ),
+        margin=dict(l=88, r=10, t=92, b=58),
+        width=max(520 * n, 1100),
+        height=500,
+    )
+    fig.add_annotation(
+        text='Training episode',
+        xref='paper',
+        yref='paper',
+        x=0.5,
+        y=-0.06,
+        xanchor='center',
+        yanchor='top',
+        showarrow=False,
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_AXIS_TITLE_SIZE,
+            color=_PLOTLY_TEXT,
+        ),
+    )
+
+    save_figure(
+        fig,
+        output_dir / 'progress_grid',
+        width=max(520 * n, 1100),
+        height=500,
+        scale=2,
+    )
+
+
+def _build_multistudy_comfort_power_grid(
+    study_cfgs: List[StudyPlotConfig],
+    output_dir: Path,
+) -> None:
+    """2 filas (comfort/power) x N columnas de estudios, con escala Y común por fila."""
+    payload: List[Tuple[StudyPlotConfig, Dict[str, pd.DataFrame]]] = []
+    for cfg in study_cfgs:
+        ep = _load_evaluation_progress(cfg)
+        if ep:
+            payload.append((cfg, ep))
+    if len(payload) < 2:
+        return
+
+    n = len(payload)
+    fig = sp.make_subplots(
+        rows=2,
+        cols=n,
+        subplot_titles=[cfg.study_label for cfg, _ in payload] + [''] * n,
+        horizontal_spacing=0.012,
+        vertical_spacing=0.11,
+    )
+
+    comfort_vals: List[np.ndarray] = []
+    power_vals: List[np.ndarray] = []
+
+    # Eje X numérico: centros más cercanos que el reparto categórico por defecto, sin tocar
+    # boxgap/boxgroupgap (eso estrecha la caja). ``step`` = distancia entre centros de modelos.
+    _x_center_step = 0.58
+
+    for col, (cfg, ep) in enumerate(payload, start=1):
+        exp_names = list(ep.keys())
+        m = len(exp_names)
+        if m == 0:
+            continue
+        xs = [float(i) * _x_center_step for i in range(m)]
+        x_pad = 0.48 * _x_center_step
+        x_rng = [xs[0] - x_pad, xs[-1] + x_pad] if m > 1 else [-0.45, 0.45]
+        box_w = 0.52 * _x_center_step if m > 1 else 0.35
+
+        colors = cfg.colors[: len(exp_names)]
+        for i, name in enumerate(exp_names):
+            dfi = ep[name]
+            if 'mean_temperature_violation' in dfi.columns:
+                yc = pd.to_numeric(
+                    dfi['mean_temperature_violation'], errors='coerce'
+                ).dropna()
+                if not yc.empty:
+                    arr = yc.to_numpy(dtype=float)
+                    comfort_vals.append(arr[np.isfinite(arr)])
+                    x_here = [xs[i]] * len(arr)
+                    fig.add_trace(
+                        go.Box(
+                            y=arr,
+                            x=x_here,
+                            width=box_w,
+                            name=name,
+                            fillcolor=colors[i],
+                            marker=dict(color=colors[i]),
+                            line=dict(color='black', width=1),
+                            showlegend=False,
+                        ),
+                        row=1,
+                        col=col,
+                    )
+            if 'mean_power_demand' in dfi.columns:
+                yp = pd.to_numeric(dfi['mean_power_demand'], errors='coerce').dropna()
+                if not yp.empty:
+                    arr = yp.to_numpy(dtype=float)
+                    power_vals.append(arr[np.isfinite(arr)])
+                    x_here = [xs[i]] * len(arr)
+                    fig.add_trace(
+                        go.Box(
+                            y=arr,
+                            x=x_here,
+                            width=box_w,
+                            name=name,
+                            fillcolor=colors[i],
+                            marker=dict(color=colors[i]),
+                            line=dict(color='black', width=1),
+                            showlegend=False,
+                        ),
+                        row=2,
+                        col=col,
+                    )
+
+        fig.update_xaxes(
+            type='linear',
+            tickmode='array',
+            tickvals=xs,
+            ticktext=exp_names,
+            range=x_rng,
+            showgrid=True,
+            zeroline=False,
+            row=1,
+            col=col,
+        )
+        fig.update_xaxes(
+            type='linear',
+            tickmode='array',
+            tickvals=xs,
+            ticktext=exp_names,
+            range=x_rng,
+            showgrid=True,
+            zeroline=False,
+            row=2,
+            col=col,
+        )
+
+    if comfort_vals:
+        a = np.concatenate(comfort_vals)
+        a = a[np.isfinite(a)]
+        if a.size > 0:
+            lo, hi = float(np.min(a)), float(np.max(a))
+            pad = 0.05 * (hi - lo) if hi > lo else 1.0
+            for col in range(1, n + 1):
+                fig.update_yaxes(range=[lo - pad, hi + pad], row=1, col=col)
+    if power_vals:
+        a = np.concatenate(power_vals)
+        a = a[np.isfinite(a)]
+        if a.size > 0:
+            lo, hi = float(np.min(a)), float(np.max(a))
+            pad = 0.05 * (hi - lo) if hi > lo else 1.0
+            for col in range(1, n + 1):
+                fig.update_yaxes(range=[lo - pad, hi + pad], row=2, col=col)
+
+    for col in range(2, n + 1):
+        fig.update_yaxes(showticklabels=False, row=1, col=col)
+        fig.update_yaxes(showticklabels=False, row=2, col=col)
+
+    _title_font = dict(
+        family=_PLOTLY_SERIF,
+        size=PLOTLY_PAPER_AXIS_TITLE_SIZE,
+        color=_PLOTLY_TEXT,
+    )
+    fig.update_yaxes(
+        title_text='Mean episodic comfort violation (ºC)',
+        title_font=_title_font,
+        title_standoff=10,
+        row=1,
+        col=1,
+    )
+    fig.update_yaxes(
+        title_text='Mean episodic power demand (W)',
+        title_font=_title_font,
+        title_standoff=10,
+        row=2,
+        col=1,
+    )
+    for col in range(2, n + 1):
+        fig.update_yaxes(title_text='', row=1, col=col)
+        fig.update_yaxes(title_text='', row=2, col=col)
+
+    fig.update_layout(
+        title=None,
+        font=dict(
+            family=_PLOTLY_SERIF,
+            size=PLOTLY_PAPER_FONT_SIZE,
+            color=_PLOTLY_TEXT,
+        ),
+        margin=dict(l=118, r=10, t=70, b=50),
+        width=max(520 * n, 1100),
+        height=760,
+    )
+
+    save_figure(
+        fig,
+        output_dir / 'comfort_power_boxplots_grid',
+        width=max(520 * n, 1100),
+        height=760,
+        scale=2,
+    )
+
+
+def _build_multistudy_comparatives(
+    study_cfgs: List[StudyPlotConfig],
+    *,
+    output_sections: Optional[AbstractSet[str]] = None,
+) -> None:
+    """Comparativas entre estudios (solo cuando hay 2+ estudios)."""
+    if len(study_cfgs) < 2:
+        return
+    out = _multi_study_output_dir(study_cfgs)
+    if output_sections is None or 'progress' in output_sections:
+        _build_multistudy_progress_grid(study_cfgs, out)
+    if output_sections is None or 'boxplots' in output_sections:
+        _build_multistudy_comfort_power_grid(study_cfgs, out)
 
 
 def run_study_plots(
@@ -878,12 +1199,15 @@ def main(output_sections: Optional[AbstractSet[str]] = None) -> None:
     """
     pio.defaults.default_scale = 2
     STUDY_CONFIGS = [
-        CASE_STUDY_CONFIG
-        # PILOT_CASE_1_CONFIG
+        # CASE_STUDY_CONFIG,
+        PILOT_CASE_1_CONFIG,
+        # PILOT_CASE_2_CONFIG,
+        # PILOT_CASE_3_CONFIG,
     ]
     for cfg in STUDY_CONFIGS:
         print(f'=== [{cfg.study_label}] -> {cfg.output_base} ===')
         run_study_plots(cfg, output_sections=output_sections)
+    _build_multistudy_comparatives(STUDY_CONFIGS, output_sections=output_sections)
 
 
 def _parse_cli():
