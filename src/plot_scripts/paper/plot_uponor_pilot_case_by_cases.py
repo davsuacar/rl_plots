@@ -4,6 +4,7 @@ import math
 import os
 import re
 from pathlib import Path
+from typing import Any, cast
 
 import pandas as pd
 import plotly.io as pio
@@ -20,14 +21,14 @@ from utils.plot_functions.plot_functions import (
     plot_control,
     plot_dfs_boxplot,
     plot_dfs_line,
+    plot_dfs_bar_grouped_by_month,
     plot_energy_savings,
     plot_episode_reward_terms_timestep,
     plot_heat_work,
     plot_mean_energy_savings,
-    plot_case_temperatures,
     plot_smoothed_signal,
+    plot_case_temperatures,
     plot_training_reward_terms_progression,
-    plot_dfs_bar_grouped_by_month,
     safe_read_csv,
     save_figure,
 )
@@ -36,42 +37,37 @@ from utils.plot_functions.plot_functions import (
 # CONFIG — DATA PATHS & EXPERIMENTS
 # =============================================================================
 
-DATA_DIR = '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1'
-EPISODE = 2
+DATA_DIR = '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso/Eval-DRL-Baseline-2026-cases'
+EPISODE = 20
 
-
+# Clave -> nombre de carpeta bajo DATA_DIR (cada una con progress.csv y episode-N/monitor/)
 EXPERIMENTS = {
-    'PPO': 'PPO/Eplus-PPO-radiant_case1_heating-Example_2026-03-16_13:32-res1',
-    'TQC': 'TQC/Eplus-TQC-radiant_case1_heating-Example_2026-03-19_08:28-res1',
-    'SAC': 'SAC/Eplus-SAC-radiant_case1_heating-Example_2026-03-16_13:42-res1',
-    'RecPPO': 'RPO/Eplus-RecurrentPPO-radiant_case1_heating-Example_2026-03-16_13:41-res1'
+    'caso1': 'caso1/Eval-DRL-Baseline-2026-case-1_2025-12-17_10:25-res1',
+    'caso2': 'caso2/Eval-DRL-Baseline-2026-case-2_2025-12-17_10:31-res1',
+    'caso3': 'caso3/Eval-DRL-Baseline-2026-case-3_2025-12-17_10:35-res1'
 }
 
 # Progress del ENTRENAMIENTO (mean_reward por episodio). Rutas externas a DATA_DIR.
 # Solo se pinta la gráfica de training progress si aquí hay al menos una entrada.
 # Ej.: si solo SAC tiene log de entrenamiento en otra ruta: {'SAC': '/ruta/al/SAC/training/progress.csv'}
 TRAINING_PROGRESS_PATHS: dict[str, str] = {
-    'PPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/PPO/training/progress.csv',
-    'TQC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/TQC/training/progress.csv',
-    'SAC': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/SAC/training/progress.csv',
-    'RecPPO': '/home/jovyan/work/data/paper/data/pilot_study/eval_por_caso_y_model/caso1/RPO/training/progress.csv',
+    # 'TQC': '/workspaces/sinergym/artifacts/TQC_humidity_fix/Sinergym_output/progress.csv',
 }
 
 names_reference = []
 names_comparison = [
-    'PPO',
-    'TQC',
-    'SAC',
-    'RecPPO'
+    'case2',
+    'case3'
 ]
 combination_size = len(names_reference) * len(names_comparison)
 
 FILTER_INTERVAL = ('2006-11-01 00:00:00', '2007-03-31 23:55:00')
 # Día de referencia para la vista diaria en plot_case_temperatures (mitad del intervalo simulado).
-ZONE_TEMP_PLOT_DAILY_DATE = (
+_zone_midpoint = (
     pd.Timestamp(FILTER_INTERVAL[0])
     + (pd.Timestamp(FILTER_INTERVAL[1]) - pd.Timestamp(FILTER_INTERVAL[0])) / 2
-).normalize()
+)
+ZONE_TEMP_PLOT_DAILY_DATE = cast(pd.Timestamp, _zone_midpoint).normalize()
 TEMPERATURE_THRESHOLD = 1.0
 SMOOTH_WINDOW = 1
 
@@ -79,14 +75,9 @@ SMOOTH_WINDOW = 1
 # CONFIG — OUTPUT DIRECTORIES (subcarpetas por tipo de gráfico)
 # =============================================================================
 
-OUTPUT_BASE = Path('/home/jovyan/work/data/paper/plots/pilot_study/training_and_evaluation/caso_1')
+OUTPUT_BASE = Path('/home/jovyan/work/data/paper/plots/pilot_study/best_agent')
 OUTPUT_PROGRESS = OUTPUT_BASE / 'progress'
 OUTPUT_ZONE_TEMPERATURES = OUTPUT_BASE / 'zone_temperatures'
-
-# plot_case_temperatures alinea layout con el PNG (Kaleido): mismo ancho/alto evita que
-# etiquetas de ejes respecto al HTML redimensionado.
-ZONE_TEMP_EXPORT_WIDTH_PX = 1200
-ZONE_TEMP_EXPORT_SINGLE_HEIGHT_PX = 500
 OUTPUT_TEMP_VS_FLOW = OUTPUT_BASE / 'temp_vs_flow'
 OUTPUT_HEAT_PUMP_AND_CONTROL = OUTPUT_BASE / 'heat_pump_and_control'
 OUTPUT_HEAT_WORK = OUTPUT_BASE / 'heat_work'
@@ -130,9 +121,9 @@ pio.defaults.default_scale = 2
 zone_names = [
     'Living Room',    
     'Bathroom',
-    'Bedroom 1',
-    'Bedroom 2',
-    'Bedroom 3',
+    'Bedroom1',
+    'Bedroom2',
+    'Bedroom3',
 ]
 temperature_variables = [
     "air_temperature_living",
@@ -318,7 +309,7 @@ _zones = list(
 )
 for key, df in unified.items():
     model_dir = OUTPUT_ZONE_TEMPERATURES / _slugify(key)
-    _kwargs = dict(
+    _kwargs: dict[str, Any] = dict(
         df=df,
         zones=_zones,
         output_dir=model_dir,
@@ -327,8 +318,8 @@ for key, df in unified.items():
         summary_title=key,
         threshold=TEMPERATURE_THRESHOLD,
         outdoor_temp_var=None,
-        png_width=ZONE_TEMP_EXPORT_WIDTH_PX,
-        png_height_single=ZONE_TEMP_EXPORT_SINGLE_HEIGHT_PX,
+        png_width=1200,
+        png_height_single=500,
         png_scale=2,
         temp_colors=['#1ABC9C', '#1ABC9C', '#1ABC9C', '#1ABC9C', '#1ABC9C']
     )
@@ -428,15 +419,6 @@ for key, df in unified.items():
         outlet_name='Heat source outlet temperature',
         title=None,
     )
-    fig.update_layout(
-        legend=dict(
-            orientation='h',
-            yanchor='bottom',
-            y=1.02,
-            xanchor='center',
-            x=0.5,
-        ),
-    )
     save_figure(
         fig,
         model_dir / 'heat_work_requested_vs_outlet_temperature',
@@ -474,7 +456,7 @@ fig = plot_dfs_bar_grouped_by_month(
     energy_variable,
     colors=colors[:df_num],
 )
-fig.update_layout(title=None, xaxis_title='', yaxis_title='Mean episodic power demand (W)')
+fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Mean episodic power demand (W)')
 save_figure(
     fig, OUTPUT_MEANS_MONTH / 'month_power_demand', width=1200, height=600, scale=2
 )
@@ -484,7 +466,7 @@ fig = plot_dfs_bar_grouped_by_month(
     'total_temperature_violation',
     colors=colors[:df_num],
 )
-fig.update_layout(title=None, xaxis_title='', yaxis_title='Mean episodic temperature violation (°C)')
+fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Mean episodic temperature violation (°C)')
 save_figure(
     fig,
     OUTPUT_MEANS_MONTH / 'month_temperature_violation',
@@ -634,7 +616,7 @@ else:
         'comfort_violation_time(%)',
         colors=colors[:df_num],
         yaxis_title='Episodic comfort violation time (%)',
-        xaxis_title=''
+        xaxis_title='Model'
     )
     save_figure(
         fig,
@@ -652,7 +634,7 @@ else:
     fig.update_layout(
         title=None,
         yaxis_title='Episodic temperature violation (ºC)',
-        xaxis_title=''
+        xaxis_title='Model'
     )
     save_figure(
         fig,
@@ -667,7 +649,7 @@ else:
         'mean_power_demand',
         colors=colors[:df_num],
         yaxis_title='Episodic power demand (W)',
-        xaxis_title=''
+        xaxis_title='Model'
     )
     fig.update_layout(title=None, yaxis_title='Power demand (W)')
     save_figure(
