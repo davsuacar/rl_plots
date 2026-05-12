@@ -1945,7 +1945,15 @@ def _violin_y_range_from_arrays(arrays: Sequence[np.ndarray]) -> Tuple[float, fl
 
 
 def plot_action_distribution(df_dict, variable, colors=None):
-    """Distribución (violín) por experimento. Estética alineada con ``sample_plots/violins.py``."""
+    """Distribución (violín) por experimento; media como segmento discontinuo de anchura fija.
+
+    Los violines usan índices 0…n-1 en X para poder dibujar la media con ``layout.shapes``:
+    la línea no depende del ancho del KDE en ese nivel (a diferencia de ``meanline`` nativo).
+    Estética alineada con ``sample_plots/violins.py`` / paper.
+    """
+    # Mitad del ancho en unidades de categoría (simétrico alrededor del centro del violín).
+    _MEAN_SEG_HALF_WIDTH = 0.28
+
     names = list(df_dict.keys())
     dfs = list(df_dict.values())
 
@@ -1955,6 +1963,7 @@ def plot_action_distribution(df_dict, variable, colors=None):
     fig = go.Figure()
     plotted_names: List[str] = []
     value_arrays: List[np.ndarray] = []
+    mean_values: List[float] = []
 
     for i, df in enumerate(dfs):
         if variable not in df.columns:
@@ -1970,25 +1979,25 @@ def plot_action_distribution(df_dict, variable, colors=None):
         q3_v = float(np.quantile(values, 0.75))
 
         model_name = names[i]
+        x_cat = len(plotted_names)
         plotted_names.append(model_name)
         value_arrays.append(values)
+        mean_values.append(mean_v)
 
         fill_rgba = _violin_fill_rgba(colors[i], 0.75)
 
         fig.add_trace(
             go.Violin(
                 y=values,
-                x=[model_name] * len(values),
+                x=[x_cat] * len(values),
                 name=model_name,
                 scalegroup='action_distribution',
-                # Equiv. matplotlib: violinplot(showmeans=True, showextrema=False): sin caja, media negra.
                 box_visible=False,
                 points=False,
                 quartilemethod='inclusive',
                 scalemode='width',
                 side='both',
-                meanline_visible=True,
-                meanline=dict(color=_PLOTLY_TEXT, width=2),
+                meanline_visible=False,
                 line=dict(color=_PLOTLY_TEXT, width=1),
                 fillcolor=fill_rgba,
                 hovertemplate=(
@@ -2015,14 +2024,13 @@ def plot_action_distribution(df_dict, variable, colors=None):
             color=_PLOTLY_TEXT,
         ),
     )
-    if plotted_names:
+    n_cat = len(plotted_names)
+    if n_cat:
         layout_kwargs['xaxis'] = dict(
-            type='category',
-            categoryorder='array',
-            categoryarray=plotted_names,
             tickmode='array',
-            tickvals=plotted_names,
+            tickvals=list(range(n_cat)),
             ticktext=plotted_names,
+            range=[-0.5, (n_cat - 1) + 0.5],
         )
     if value_arrays:
         y0, y1 = _violin_y_range_from_arrays(value_arrays)
@@ -2032,6 +2040,19 @@ def plot_action_distribution(df_dict, variable, colors=None):
         layout_kwargs['yaxis'] = yaxis_cfg
 
     fig.update_layout(**layout_kwargs)
+
+    for k, mean_v in enumerate(mean_values):
+        fig.add_shape(
+            type='line',
+            x0=k - _MEAN_SEG_HALF_WIDTH,
+            x1=k + _MEAN_SEG_HALF_WIDTH,
+            y0=mean_v,
+            y1=mean_v,
+            xref='x',
+            yref='y',
+            layer='above',
+            line=dict(color=_PLOTLY_TEXT, width=2, dash='solid'),
+        )
 
     return fig
 
@@ -2620,21 +2641,22 @@ def _xaxis_layout_for_datetime_span(dt: pd.Series) -> dict:
 def _export_plotly_figure(
     fig: go.Figure,
     path_stem: Path,
-    export_format: Literal["html", "png"],
+    export_format: Literal["html", "png", "both"],
     *,
     png_width: int,
     png_height: int,
     png_scale: int = 2,
     paper_style: bool = False,
 ) -> None:
-    """Write ``path_stem`` + ``.html`` or ``.png`` (requires kaleido for PNG)."""
+    """Write ``path_stem`` + ``.html`` and/or ``.png`` (kaleido needed for PNG)."""
     path_stem = Path(path_stem)
     path_stem.parent.mkdir(parents=True, exist_ok=True)
     fig.update_layout(width=png_width, height=png_height, **PLOTLY_WHITE_LAYOUT_KWARGS)
     if paper_style:
         apply_plotly_paper_style(fig)
-    if export_format == "html":
+    if export_format in ("html", "both"):
         fig.write_html(str(path_stem.with_suffix(".html")))
+    if export_format == "html":
         return
     out_png = path_stem.with_suffix(".png")
     try:
@@ -2661,12 +2683,14 @@ def plot_case_temperatures(
     outdoor_temp_var: Optional[str] = "outdoor_temperature",
     period_start: Optional[datetime] = None,
     period_end: Optional[datetime] = None,
-    export_format: Literal["html", "png"] = "png",
+    export_format: Literal["html", "png", "both"] = "png",
     png_width: int = 1200,
     png_height_single: int = 500,
     png_scale: int = 2,
     paper_style: bool = False,
     export_zone_subfolders: bool = True,
+    grid_filename_stem: Optional[str] = None,
+    nest_zone_dirs_under_case: bool = True,
 ) -> None:
     """Grid + per-zone time views: export as PNG (default) or interactive HTML.
 
@@ -2685,6 +2709,10 @@ def plot_case_temperatures(
     ``paper_style``: al exportar, aplica :func:`apply_plotly_paper_style`.
     ``export_zone_subfolders``: si es True (por defecto), exporta también las
     figuras por zona bajo ``case{N}/{slug_zona}/`` (periodo completo, día, semana, mes).
+    ``grid_filename_stem``: si se indica, el archivo de rejilla usa
+    ``{grid_filename_stem}_temperatures`` en lugar de ``case{case_id}_temperatures``.
+    ``nest_zone_dirs_under_case``: si es False, las figuras por zona van directamente
+    bajo ``output_dir/{slug_zona}/`` (sin carpeta ``case{N}``).
     """
     if "datetime" not in df.columns:
         raise ValueError("El DataFrame debe contener la columna 'datetime'.")
@@ -2905,9 +2933,12 @@ def plot_case_temperatures(
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    _grid_stem = (
+        grid_filename_stem if grid_filename_stem is not None else f"case{case_id}"
+    )
     _export_plotly_figure(
         fig,
-        output_dir / f"case{case_id}_temperatures",
+        output_dir / f"{_grid_stem}_temperatures",
         export_format,
         png_width=png_width,
         png_height=grid_height,
@@ -2920,7 +2951,10 @@ def plot_case_temperatures(
 
     for i, (temp_col, sp_col, room_title) in enumerate(zones):
         room_slug = _zone_output_slug(room_title)
-        room_dir = output_dir / f"case{case_id}" / room_slug
+        if nest_zone_dirs_under_case:
+            room_dir = output_dir / f"case{case_id}" / room_slug
+        else:
+            room_dir = output_dir / room_slug
         room_dir.mkdir(parents=True, exist_ok=True)
 
         fig_r = go.Figure()

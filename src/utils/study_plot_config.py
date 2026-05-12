@@ -65,7 +65,7 @@ class StudyPlotConfig:
 
 
 CASE_STUDY_CONFIG = StudyPlotConfig(
-    study_label='case_study',
+    study_label='Case study',
     output_base=Path('/home/jovyan/work/data/paper/plots/case_study/training_and_evaluation'),
     data_dir='/home/jovyan/work/data/paper/data/case_study/simulation',
     episode=10,
