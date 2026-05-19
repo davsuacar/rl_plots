@@ -677,7 +677,7 @@ def run_study_plots(
             if filter_interval is not None:
                 _kwargs['period_start'] = pd.Timestamp(filter_interval[0]).to_pydatetime()
                 _kwargs['period_end'] = pd.Timestamp(filter_interval[1]).to_pydatetime()
-            plot_case_temperatures(**_kwargs, export_zone_subfolders=False)
+            plot_case_temperatures(**_kwargs, export_zone_subfolders=True)
 
     # =============================================================================
     # FIGURES — Temperature vs flow (control)
@@ -1199,8 +1199,8 @@ def main(output_sections: Optional[AbstractSet[str]] = None) -> None:
     """
     pio.defaults.default_scale = 2
     STUDY_CONFIGS = [
-        # CASE_STUDY_CONFIG,
-        PILOT_CASE_1_CONFIG,
+        CASE_STUDY_CONFIG,
+        # PILOT_CASE_1_CONFIG,
         # PILOT_CASE_2_CONFIG,
         # PILOT_CASE_3_CONFIG,
     ]
