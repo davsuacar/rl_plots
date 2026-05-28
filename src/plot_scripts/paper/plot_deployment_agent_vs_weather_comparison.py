@@ -13,7 +13,6 @@ Salida: data/paper/plots/case_study/deployment_agent_vs_weather/
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -31,11 +30,11 @@ from utils.plot_functions.plot_functions import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-WEATHER_CSV = REPO_ROOT / 'data/paper/data/case_study/sim2real/weather-2026-04-20 10_48_28_cleaned.csv'
+WEATHER_CSV = REPO_ROOT / 'work/data/paper/data/case_study/sim2real/weather-2026-04-20 10_48_28_cleaned.csv'
 AGENT_HISTORY_CSV = REPO_ROOT / (
-    'data/paper/data/case_study/sim2real/ai-uponor_smatrix-alcorcon-lab_y07e51pj_history.csv'
+    'work/data/paper/data/case_study/sim2real/ai-uponor_smatrix-alcorcon-lab_y07e51pj_history.csv'
 )
-OUTPUT_BASE = REPO_ROOT / 'data/paper/plots/case_study/deployment_agent_vs_weather'
+OUTPUT_BASE = REPO_ROOT / 'work/data/paper/plots/case_study/deployment_agent_vs_weather'
 
 WEATHER_LABEL = 'Weather (19–20 Feb 2026)'
 AGENT_LABEL = 'Agent (29–30 Mar 2026)'
@@ -113,53 +112,92 @@ def _slugify(text: str) -> str:
     return t.strip('_')
 
 
-# --- Carga weather (misma lógica que plot_uponor_pilot_case_weather_cleaned_sim2real) ---
-_WEATHER_ZONE_SPECS: tuple[tuple[str, str, str, str], ...] = (
-    ('living-kitchen', 'air_temperature_living_kitchen', 'heating_setpoint_living_kitchen', 'flow_rate_living_kitchen'),
-    ('bathroom_lobby', 'air_temperature_bathroom_lobby', 'heating_setpoint_bathroom_lobby', 'flow_rate_bathroom_lobby'),
-    ('bedroom_1', 'air_temperature_bed1', 'heating_setpoint_bed1', 'flow_rate_bed1'),
-    ('bedroom_2', 'air_temperature_bed2', 'heating_setpoint_bed2', 'flow_rate_bed2'),
-    ('bedroom_3', 'air_temperature_bed3', 'heating_setpoint_bed3', 'flow_rate_bed3'),
-    ('bathroom_corridor', 'air_temperature_bathroom_corridor', 'heating_setpoint_bathroom_corridor', 'flow_rate_bathroom_corridor'),
-    ('bathroom_dressing', 'air_temperature_bathroom_dressing', 'heating_setpoint_bathroom_dressing', 'flow_rate_bathroom_dressing'),
-)
+def _datetime_from_timestep(series: pd.Series) -> pd.Series:
+    """Construye datetime desde una columna _timestep.
+
+    Soporta dos casos comunes:
+    - epoch seconds/ms (típico si viene como timestamp)
+    - índice de timestep (típico de entornos RL); se asume 10 min por paso.
+    """
+    s = pd.to_numeric(series, errors='coerce')
+    if s.notna().sum() == 0:
+        return pd.to_datetime(pd.Series([pd.NaT] * len(series)))
+    med = float(s.dropna().median())
+    if med >= 1e12:  # epoch ms
+        dt = pd.to_datetime(s, unit='ms', errors='coerce', utc=True)
+    elif med >= 1e9:  # epoch s
+        dt = pd.to_datetime(s, unit='s', errors='coerce', utc=True)
+    else:  # step index → 10 min increments from unix epoch
+        dt = pd.to_datetime(0, unit='s', utc=True) + pd.to_timedelta(s, unit='m') * 10
+    return dt
+
+
+def _datetime_from_ymd(df: pd.DataFrame) -> pd.Series:
+    ymd = pd.DataFrame(
+        {
+            'year': pd.to_numeric(df['year'], errors='coerce'),
+            'month': pd.to_numeric(df['month'], errors='coerce'),
+            'day': pd.to_numeric(df['day'], errors='coerce'),
+        }
+    )
+    dt = pd.to_datetime(ymd, errors='coerce')
+    if 'hour' in df.columns:
+        hour = pd.to_numeric(df['hour'], errors='coerce').fillna(0)
+        dt = dt + pd.to_timedelta(hour, unit='h')
+    return dt
+
+
+def _infer_datetime(df: pd.DataFrame, *, prefer_valid_time_local: bool = False) -> pd.Series:
+    if prefer_valid_time_local and 'valid_time_local' in df.columns:
+        return pd.to_datetime(df['valid_time_local'], errors='coerce')
+    if '_timestep' in df.columns:
+        return _datetime_from_timestep(df['_timestep'])
+    if {'year', 'month', 'day'}.issubset(df.columns):
+        return _datetime_from_ymd(df)
+    raise ValueError('No se pudo inferir datetime: faltan valid_time_local, _timestep o year/month/day.')
+
+
+# --- Carga weather (columnas del CSV limpio Grafana) ---
+_WEATHER_COLUMN_MAP: dict[str, str] = {
+    'living-kitchen_ambient_temperature': 'air_temperature_living_kitchen',
+    'living-kitchen_setpoint': 'heating_setpoint_living_kitchen',
+    'living-kitchen_actuator_status': 'flow_rate_living_kitchen',
+    'bathroom_lobby_ambient_temperature': 'air_temperature_bathroom_lobby',
+    'bathroom_lobby_setpoint': 'heating_setpoint_bathroom_lobby',
+    'bathroom_lobby_actuator_status': 'flow_rate_bathroom_lobby',
+    'bedroom_1_ambient_temperature': 'air_temperature_bed1',
+    'bedroom_1_setpoint': 'heating_setpoint_bed1',
+    'bedroom_1_actuator_status': 'flow_rate_bed1',
+    'bedroom_2_ambient_temperature': 'air_temperature_bed2',
+    'bedroom_2_setpoint': 'heating_setpoint_bed2',
+    'bedroom_2_actuator_status': 'flow_rate_bed2',
+    'bedroom_3_ambient_temperature': 'air_temperature_bed3',
+    'bedroom_3_setpoint': 'heating_setpoint_bed3',
+    'bedroom_3_actuator_status': 'flow_rate_bed3',
+    'bathroom_corridor_ambient_temperature': 'air_temperature_bathroom_corridor',
+    'bathroom_corridor_setpoint': 'heating_setpoint_bathroom_corridor',
+    'bathroom_corridor_actuator_status': 'flow_rate_bathroom_corridor',
+    'bathroom_dressing_ambient_temperature': 'air_temperature_bathroom_dressing',
+    'bathroom_dressing_setpoint': 'heating_setpoint_bathroom_dressing',
+    'bathroom_dressing_actuator_status': 'flow_rate_bathroom_dressing',
+    'outdoor_dry_bulb_temp_celsius': 'outdoor_temperature',
+    'heatpump_supply_temperature': 'water_temperature',
+    'heatpump_power': 'heat_source_electricity_rate',
+}
 
 
 def _load_weather_cleaned(path: Path) -> pd.DataFrame:
     df = safe_read_csv(str(path))
     if df.empty:
         return df
-    out = pd.DataFrame(index=df.index)
-    for csv_prefix, tcol, scol, fcol in _WEATHER_ZONE_SPECS:
-        amb = f'{csv_prefix}_ambient_temperature'
-        sp = f'{csv_prefix}_setpoint'
-        act = f'{csv_prefix}_actuator_status'
-        if amb in df.columns:
-            out[tcol] = pd.to_numeric(df[amb], errors='coerce')
-        if sp in df.columns:
-            out[scol] = pd.to_numeric(df[sp], errors='coerce')
-        if act in df.columns:
-            out[fcol] = pd.to_numeric(df[act], errors='coerce')
-    if 'outdoor_dry_bulb_temp_celsius' in df.columns:
-        out['outdoor_temperature'] = pd.to_numeric(df['outdoor_dry_bulb_temp_celsius'], errors='coerce')
-    if 'heatpump_supply_temperature' in df.columns:
-        out['water_temperature'] = pd.to_numeric(df['heatpump_supply_temperature'], errors='coerce')
-    if 'heatpump_power' in df.columns:
-        out['heat_source_electricity_rate'] = pd.to_numeric(df['heatpump_power'], errors='coerce')
-    if 'valid_time_local' in df.columns:
-        out['datetime'] = pd.to_datetime(df['valid_time_local'], errors='coerce')
-    elif 'time' in df.columns:
-        out['datetime'] = pd.to_datetime(pd.to_numeric(df['time'], errors='coerce'), unit='s', errors='coerce')
-    elif {'year', 'month', 'day'}.issubset(df.columns):
-        h = df['hour'] if 'hour' in df.columns else 0
-        out['datetime'] = pd.to_datetime(
-            dict(year=df['year'], month=df['month'], day=df['day'], hour=h),
-            errors='coerce',
-        )
-    else:
-        raise ValueError('Weather CSV: sin valid_time_local / time / year-month-day')
-    out = out.loc[out['datetime'].notna()].sort_values('datetime').reset_index(drop=True)
-    return out
+    rename = {k: v for k, v in _WEATHER_COLUMN_MAP.items() if k in df.columns}
+    df = df.rename(columns=rename)
+    for col in rename.values():
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    df['datetime'] = _infer_datetime(df, prefer_valid_time_local=True)
+    df = df.loc[df['datetime'].notna()].sort_values('datetime').reset_index(drop=True)
+    return df
 
 
 # --- Carga agente (historial Ray / monitor) ---
@@ -202,11 +240,17 @@ def _load_agent_history(path: Path) -> pd.DataFrame:
         return df
     rename = {k: v for k, v in _SIM2REAL_COLUMN_MAP.items() if k in df.columns}
     df = df.rename(columns=rename)
-    if '_timestamp' not in df.columns:
-        raise ValueError(f'Se esperaba _timestamp en {path}')
-    df['datetime'] = pd.to_datetime(df['_timestamp'], unit='s', utc=True)
+    if '_timestamp' in df.columns:
+        df['datetime'] = pd.to_datetime(df['_timestamp'], unit='s', utc=True, errors='coerce')
+    elif '_timestep' in df.columns:
+        df['datetime'] = _datetime_from_timestep(df['_timestep'])
+    elif {'year', 'month', 'day'}.issubset(df.columns):
+        df['datetime'] = _datetime_from_ymd(df)
+    else:
+        raise ValueError(f'Se esperaba _timestamp, _timestep o year/month/day en {path}')
     if 'water_temperature' not in df.columns and 'info/t_supply' in df.columns:
         df['water_temperature'] = df['info/t_supply']
+    df = df.loc[df['datetime'].notna()].sort_values('datetime').reset_index(drop=True)
     return df
 
 
@@ -299,6 +343,17 @@ def main() -> None:
     df_w = filter_calendar(df_w, **WEATHER_FILTER)
     df_a = filter_calendar(df_a, **AGENT_FILTER)
 
+    print(
+        f'Weather ({WEATHER_CSV.name}): {len(df_w)} filas '
+        f'({WEATHER_FILTER["days"][0]}–{WEATHER_FILTER["days"][1]} '
+        f'{WEATHER_FILTER["month"]:02d}/{WEATHER_FILTER["year"]}, {LOCAL_TZ})'
+    )
+    print(
+        f'Agent ({AGENT_HISTORY_CSV.name}): {len(df_a)} filas '
+        f'({AGENT_FILTER["days"][0]}–{AGENT_FILTER["days"][1]} '
+        f'{AGENT_FILTER["month"]:02d}/{AGENT_FILTER["year"]}, {LOCAL_TZ})'
+    )
+
     if df_w.empty:
         raise SystemExit(
             f'Weather: 0 filas en {WEATHER_FILTER["month"]}/{WEATHER_FILTER["days"]} '
@@ -364,12 +419,13 @@ def main() -> None:
             'Outdoor temperature (°C)',
             compare_dir / 'compare_outdoor_temperature',
         )
-    plot_compare_timeseries(
-        unified,
-        'water_temperature',
-        'Supply / water temperature (°C)',
-        compare_dir / 'compare_water_temperature',
-    )
+    if any('water_temperature' in df.columns for df in unified.values()):
+        plot_compare_timeseries(
+            unified,
+            'water_temperature',
+            'Supply / water temperature (°C)',
+            compare_dir / 'compare_water_temperature',
+        )
     if all(energy_variable in df.columns for df in unified.values()):
         plot_compare_timeseries(
             unified,

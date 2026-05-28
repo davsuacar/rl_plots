@@ -31,17 +31,18 @@ from utils.plot_functions.plot_functions import (
 )
 
 # =============================================================================
-# CONFIG — CSV Grafana limpio (weather)
+# CONFIG — SIM2REAL HISTORY (único CSV tipo monitor / Ray)
 # =============================================================================
-# Misma tubería que plot_uponor_pilot_case_sim2real_alcorcon_history.py; la entrada
-# es el export weather limpio (clean_grafana_data.py): zonas living-kitchen, etc.
+# Misma tubería de gráficas que plot_uponor_pilot_case_by_algorithm.py, pero la
+# entrada es el historial exportado (columnas observation/*, info/*, action/*).
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-WEATHER_CSV = REPO_ROOT / (
-    'data/paper/data/case_study/sim2real/'
-    'weather-2026-04-20 10_48_28_cleaned.csv'
+HISTORY_CSV = REPO_ROOT / (
+    'work/data/paper/data/case_study/sim2real/'
+    'ai-uponor_smatrix-alcorcon-lab_y07e51pj_history.csv'
 )
-EXPERIMENT_LABEL = 'weather_grafana_cleaned'
+print(REPO_ROOT)
+EXPERIMENT_LABEL = 'ai-uponor_smatrix-alcorcon-lab_y07e51pj'
 
 # Progress del entrenamiento / evaluation progress: no aplican a este CSV → vacío.
 TRAINING_PROGRESS_PATHS: dict[str, str] = {}
@@ -61,7 +62,7 @@ SMOOTH_WINDOW = 1
 # CONFIG — OUTPUT DIRECTORIES (subcarpetas por tipo de gráfico)
 # =============================================================================
 
-OUTPUT_BASE = REPO_ROOT / 'data/paper/plots/case_study/deployment_weather_efficiency/'
+OUTPUT_BASE = REPO_ROOT / 'work/data/paper/plots/case_study/rl_alcorcon_lab/'
 OUTPUT_PROGRESS = OUTPUT_BASE / 'progress'
 OUTPUT_ZONE_TEMPERATURES = OUTPUT_BASE / 'zone_temperatures'
 OUTPUT_TEMP_VS_FLOW = OUTPUT_BASE / 'temp_vs_flow'
@@ -79,6 +80,7 @@ OUTPUT_REWARD_BALANCE_SUMMARY = OUTPUT_REWARD_BALANCE / 'summary'
 # Evolución timestep a timestep dentro de un episodio (infos)
 OUTPUT_REWARD_BALANCE_PER_TIMESTEP = OUTPUT_REWARD_BALANCE / 'per_timestep'
 
+print(OUTPUT_BASE)
 for _d in (
     OUTPUT_BASE,
     OUTPUT_PROGRESS,
@@ -133,7 +135,6 @@ setpoint_variables = [
     'heating_setpoint_bathroom_corridor',
     'heating_setpoint_bathroom_dressing',
 ]
-# En el CSV Grafana, el estado del actuador por zona equivale al caudal/válvula usado en los plots.
 flow_variables = [
     'flow_rate_living_kitchen',
     'flow_rate_bathroom_lobby',
@@ -195,68 +196,79 @@ def _slugify(text: str) -> str:
 
 
 # =============================================================================
-# DATA LOADING — CSV Grafana weather (cleaned)
+# DATA LOADING — historial sim2real (único CSV)
 # =============================================================================
 
-# (prefijo CSV, temp interna, setpoint interno, flow interno).
-# flow_* se rellena desde {prefijo}_actuator_status (estado actuador ≈ válvula/caudal).
-_WEATHER_ZONE_SPECS: tuple[tuple[str, str, str, str], ...] = (
-    ('living-kitchen', 'air_temperature_living_kitchen', 'heating_setpoint_living_kitchen', 'flow_rate_living_kitchen'),
-    ('bathroom_lobby', 'air_temperature_bathroom_lobby', 'heating_setpoint_bathroom_lobby', 'flow_rate_bathroom_lobby'),
-    ('bedroom_1', 'air_temperature_bed1', 'heating_setpoint_bed1', 'flow_rate_bed1'),
-    ('bedroom_2', 'air_temperature_bed2', 'heating_setpoint_bed2', 'flow_rate_bed2'),
-    ('bedroom_3', 'air_temperature_bed3', 'heating_setpoint_bed3', 'flow_rate_bed3'),
-    ('bathroom_corridor', 'air_temperature_bathroom_corridor', 'heating_setpoint_bathroom_corridor', 'flow_rate_bathroom_corridor'),
-    ('bathroom_dressing', 'air_temperature_bathroom_dressing', 'heating_setpoint_bathroom_dressing', 'flow_rate_bathroom_dressing'),
-)
+# Prefijos observation/* / info/* del export → nombres usados en plot_functions.
+_SIM2REAL_COLUMN_MAP: dict[str, str] = {
+    'observation/air_temperature_f0_livroom-kitchen': 'air_temperature_living_kitchen',
+    'observation/setpoint_f0_livroom-kitchen': 'heating_setpoint_living_kitchen',
+    'observation/air_temperature_f0_bathroom': 'air_temperature_bathroom_lobby',
+    'observation/setpoint_f0_bathroom': 'heating_setpoint_bathroom_lobby',
+    'observation/air_temperature_f1_bed1': 'air_temperature_bed1',
+    'observation/setpoint_f1_bed1': 'heating_setpoint_bed1',
+    'observation/air_temperature_f1_bed2': 'air_temperature_bed2',
+    'observation/setpoint_f1_bed2': 'heating_setpoint_bed2',
+    'observation/air_temperature_f1_bed3': 'air_temperature_bed3',
+    'observation/setpoint_f1_bed3': 'heating_setpoint_bed3',
+    'observation/air_temperature_f1_secondary_bathroom': 'air_temperature_bathroom_corridor',
+    'observation/setpoint_f1_secondary_bathroom': 'heating_setpoint_bathroom_corridor',
+    'observation/air_temperature_f1_main_bathroom': 'air_temperature_bathroom_dressing',
+    'observation/setpoint_f1_main_bathroom': 'heating_setpoint_bathroom_dressing',
+    'info/valve_f0_livroom-kitchen': 'flow_rate_living_kitchen',
+    'info/valve_f0_bathroom': 'flow_rate_bathroom_lobby',
+    'info/valve_f1_bed1': 'flow_rate_bed1',
+    'info/valve_f1_bed2': 'flow_rate_bed2',
+    'info/valve_f1_bed3': 'flow_rate_bed3',
+    'info/valve_f1_secondary_bathroom': 'flow_rate_bathroom_corridor',
+    'info/valve_f1_main_bathroom': 'flow_rate_bathroom_dressing',
+    'observation/heat_pump_electricity_rate': 'heat_source_electricity_rate',
+    'info/t_supply': 'water_temperature',
+    'observation/heat_pump_load_side_outlet_temp': 'heat_source_load_side_outlet_temp',
+    'observation/outdoor_temperature': 'outdoor_temperature',
+    'info/total_power_demand': 'total_power_demand',
+    'info/total_temperature_violation': 'total_temperature_violation',
+    'info/comfort_term': 'comfort_term',
+    'info/energy_term': 'energy_term',
+}
 
 
-def _load_weather_cleaned(path: Path) -> pd.DataFrame:
+def _load_sim2real_history(path: Path) -> pd.DataFrame:
     df = safe_read_csv(str(path))
     if df.empty:
         return df
-    out = pd.DataFrame(index=df.index)
-    for csv_prefix, tcol, scol, fcol in _WEATHER_ZONE_SPECS:
-        amb = f'{csv_prefix}_ambient_temperature'
-        sp = f'{csv_prefix}_setpoint'
-        act = f'{csv_prefix}_actuator_status'
-        if amb in df.columns:
-            out[tcol] = pd.to_numeric(df[amb], errors='coerce')
-        if sp in df.columns:
-            out[scol] = pd.to_numeric(df[sp], errors='coerce')
-        if act in df.columns:
-            out[fcol] = pd.to_numeric(df[act], errors='coerce')
-    if 'outdoor_dry_bulb_temp_celsius' in df.columns:
-        out['outdoor_temperature'] = pd.to_numeric(df['outdoor_dry_bulb_temp_celsius'], errors='coerce')
-    if 'heatpump_supply_temperature' in df.columns:
-        out['water_temperature'] = pd.to_numeric(df['heatpump_supply_temperature'], errors='coerce')
-    if 'heatpump_power' in df.columns:
-        out['heat_source_electricity_rate'] = pd.to_numeric(df['heatpump_power'], errors='coerce')
-    if 'heatpump_return_temperature' in df.columns:
-        out['heat_source_load_side_outlet_temp'] = pd.to_numeric(
-            df['heatpump_return_temperature'], errors='coerce'
+    rename = {k: v for k, v in _SIM2REAL_COLUMN_MAP.items() if k in df.columns}
+    df = df.rename(columns=rename)
+    # datetime: o bien desde _timestep, o bien desde year/month/day.
+    # (fallback a _timestamp para mantener compatibilidad con históricos Ray)
+
+    if "_timestamp" in df.columns:
+        df["datetime"] = pd.to_datetime(df["_timestamp"], unit="s", utc=True, errors="coerce")
+    elif {"year", "month", "day"}.issubset(df.columns):
+        ymd = pd.DataFrame(
+            {
+                "year": pd.to_numeric(df["year"], errors="coerce"),
+                "month": pd.to_numeric(df["month"], errors="coerce"),
+                "day": pd.to_numeric(df["day"], errors="coerce"),
+            }
         )
-    if 'valid_time_local' in df.columns:
-        out['datetime'] = pd.to_datetime(df['valid_time_local'], utc=True, errors='coerce')
-    elif 'time' in df.columns:
-        out['datetime'] = pd.to_datetime(pd.to_numeric(df['time'], errors='coerce'), unit='s', errors='coerce')
-    elif {'year', 'month', 'day'}.issubset(df.columns):
-        h = df['hour'] if 'hour' in df.columns else 0
-        out['datetime'] = pd.to_datetime(
-            dict(year=df['year'], month=df['month'], day=df['day'], hour=h),
-            errors='coerce',
-        )
+        dt = pd.to_datetime(ymd, errors="coerce")
+        if "hour" in df.columns:
+            hour = pd.to_numeric(df["hour"], errors="coerce").fillna(0)
+            dt = dt + pd.to_timedelta(hour, unit="h")
+        df["datetime"] = dt
     else:
         raise ValueError(
-            f"No se pudo inferir datetime en {path}: faltan valid_time_local, time o year/month/day."
+            f"No se pudo inferir datetime en {path}: faltan _timestep o year/month/day."
         )
-    out = out.loc[out['datetime'].notna()].sort_values('datetime').reset_index(drop=True)
-    return out
+    if 'water_temperature' not in df.columns and 'info/t_supply' in df.columns:
+        df['water_temperature'] = df['info/t_supply']
+    return df
 
 
-_raw = _load_weather_cleaned(WEATHER_CSV)
+_raw = _load_sim2real_history(HISTORY_CSV)
 if _raw.empty:
-    raise SystemExit(f"No hay datos en {WEATHER_CSV}")
+    raise SystemExit(f"No hay datos en {HISTORY_CSV}")
 
 unified = {EXPERIMENT_LABEL: _raw}
 
@@ -288,12 +300,9 @@ df_num = len(unified)
 mean_temp_violation_dict = {
     key: mean_variable(df, variable='total_temperature_violation')
     for key, df in unified.items()
-    if 'total_temperature_violation' in df.columns
 }
 mean_energy_consumption_dict = {
-    key: mean_variable(df, variable=energy_variable)
-    for key, df in unified.items()
-    if energy_variable in df.columns
+    key: mean_variable(df, variable='total_power_demand') for key, df in unified.items()
 }
 
 # CRF: media (y std) de transiciones encendido/apagado y de encendidos estrictos por día
@@ -358,16 +367,13 @@ for key, df in unified.items():
 # =============================================================================
 
 for key, df in unified.items():
-    _temps = [c for c in temperature_variables if c in df.columns]
-    _flows = [c for c in flow_variables if c in df.columns]
     fig = plot_control(
         df=df,
-        temperature_variables=_temps,
-        flow_variables=_flows,
-        names=[f'Temp {z}' for z, c in zip(zone_names, temperature_variables) if c in df.columns]
-        + [f'Flow {z}' for z, c in zip(zone_names, flow_variables) if c in df.columns],
-        colors=colors[: len(_temps) + len(_flows)],
-        outdoor_temp_var='outdoor_temperature' if 'outdoor_temperature' in df.columns else None,
+        temperature_variables=temperature_variables,
+        flow_variables=flow_variables,
+        names=[f'Temp {z}' for z in zone_names] + [f'Flow {z}' for z in zone_names],
+        colors=colors[: len(temperature_variables) + len(flow_variables)],
+        outdoor_temp_var='outdoor_temperature',
     )
     save_figure(
         fig,
@@ -460,61 +466,49 @@ for key, df in unified.items():
 # FIGURES — Medias (barras) y power demand por mes
 # =============================================================================
 
-if mean_temp_violation_dict:
-    fig = plot_bar(mean_temp_violation_dict, bar_colors=colors[: len(mean_temp_violation_dict)])
-    fig.update_layout(
-        title=None,
-        xaxis_title='Model',
-        yaxis_title='Mean episodic temperature violation (ºC)',
-    )
-    save_figure(
-        fig, OUTPUT_MEANS_GENERAL / 'mean_temp_violations', width=1200, height=600, scale=2
-    )
-else:
-    print('⚠️ Sin columna total_temperature_violation; se omite mean_temp_violations.')
+fig = plot_bar(mean_temp_violation_dict, bar_colors=colors[:df_num])
+fig.update_layout(
+    title=None,
+    xaxis_title='Model',
+    yaxis_title='Mean episodic temperature violation (ºC)',
+)
+save_figure(
+    fig, OUTPUT_MEANS_GENERAL / 'mean_temp_violations', width=1200, height=600, scale=2
+)
 
-if mean_energy_consumption_dict:
-    fig = plot_bar(mean_energy_consumption_dict, bar_colors=colors[: len(mean_energy_consumption_dict)])
-    fig.update_layout(
-        title=None,
-        xaxis_title='Model',
-        yaxis_title='Mean episodic power consumption (W)',
-    )
-    save_figure(
-        fig, OUTPUT_MEANS_GENERAL / 'mean_power_demand', width=1200, height=600, scale=2
-    )
-else:
-    print(f'⚠️ Sin columna {energy_variable}; se omite mean_power_demand.')
+fig = plot_bar(mean_energy_consumption_dict, bar_colors=colors[:df_num])
+fig.update_layout(
+    title=None,
+    xaxis_title='Model',
+    yaxis_title='Mean episodic power consumption (W)',
+)
+save_figure(
+    fig, OUTPUT_MEANS_GENERAL / 'mean_power_demand', width=1200, height=600, scale=2
+)
 
-if all(energy_variable in df.columns for df in unified.values()):
-    fig = plot_dfs_bar_grouped_by_month(
-        unified,
-        energy_variable,
-        colors=colors[:df_num],
-    )
-    fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Mean episodic power demand (W)')
-    save_figure(
-        fig, OUTPUT_MEANS_MONTH / 'month_power_demand', width=1200, height=600, scale=2
-    )
-else:
-    print(f'⚠️ Sin {energy_variable} en todos los runs; se omite month_power_demand.')
+fig = plot_dfs_bar_grouped_by_month(
+    unified,
+    energy_variable,
+    colors=colors[:df_num],
+)
+fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Mean episodic power demand (W)')
+save_figure(
+    fig, OUTPUT_MEANS_MONTH / 'month_power_demand', width=1200, height=600, scale=2
+)
 
-if all('total_temperature_violation' in df.columns for df in unified.values()):
-    fig = plot_dfs_bar_grouped_by_month(
-        unified,
-        'total_temperature_violation',
-        colors=colors[:df_num],
-    )
-    fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Mean episodic temperature violation (°C)')
-    save_figure(
-        fig,
-        OUTPUT_MEANS_MONTH / 'month_temperature_violation',
-        width=1200,
-        height=600,
-        scale=2,
-    )
-else:
-    print('⚠️ Sin total_temperature_violation; se omite month_temperature_violation.')
+fig = plot_dfs_bar_grouped_by_month(
+    unified,
+    'total_temperature_violation',
+    colors=colors[:df_num],
+)
+fig.update_layout(title=None, xaxis_title='Date', yaxis_title='Mean episodic temperature violation (°C)')
+save_figure(
+    fig,
+    OUTPUT_MEANS_MONTH / 'month_temperature_violation',
+    width=1200,
+    height=600,
+    scale=2,
+)
 
 # Inlet/outlet: medias por zona por experimento (barras agrupadas)
 if any(
@@ -628,9 +622,6 @@ else:
 # =============================================================================
 
 for var in action_distribution_variables:
-    if not any(var in df.columns for df in unified.values()):
-        print(f'⚠️ Variable "{var}" ausente en datos; se omite action_distribution.')
-        continue
     fig = plot_action_distribution(
         unified,
         var,
